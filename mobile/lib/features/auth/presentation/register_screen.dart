@@ -5,6 +5,7 @@ import '../auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../l10n/app_localizations.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -37,7 +38,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _error = null;
     });
     try {
-      await ref.read(authProvider.notifier).register(
+      await ref
+          .read(authProvider.notifier)
+          .register(
             _emailController.text.trim(),
             _passwordController.text,
             _nameController.text.trim(),
@@ -45,12 +48,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     } catch (e) {
       if (!mounted) return;
       final s = e.toString().toLowerCase();
+      final t = AppLocalizations.of(context);
       setState(() {
-        _error = (s.contains('already') ||
-                s.contains('exist') ||
-                s.contains('409'))
-            ? 'Bu e-posta zaten kayıtlı'
-            : 'Kayıt olunamadı, tekrar dene';
+        _error =
+            (s.contains('already') || s.contains('exist') || s.contains('409'))
+            ? t.registerEmailExists
+            : t.registerFailed;
         _loading = false;
       });
     }
@@ -58,6 +61,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: context.colors.bg,
       body: SafeArea(
@@ -72,27 +76,29 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 const _BrandMark(),
                 const SizedBox(height: 40),
                 Text(
-                  'Hesap oluştur',
-                  style: AppTypography.displaySm
-                      .copyWith(fontWeight: FontWeight.w700),
+                  t.registerTitle,
+                  style: AppTypography.displaySm.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Harcamalarını kontrol altına almaya başla.',
-                  style:
-                      AppTypography.bodyLg.copyWith(color: context.colors.textMid),
+                  t.registerSubtitleShort,
+                  style: AppTypography.bodyLg.copyWith(
+                    color: context.colors.textMid,
+                  ),
                 ),
                 const SizedBox(height: 36),
                 TextFormField(
                   controller: _nameController,
                   textInputAction: TextInputAction.next,
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Ad Soyad',
-                    prefixIcon: Icon(Icons.person_outline_rounded),
+                  decoration: InputDecoration(
+                    labelText: t.registerFullNameLabel,
+                    prefixIcon: const Icon(Icons.person_outline_rounded),
                   ),
                   validator: (v) => (v?.trim().isEmpty ?? true)
-                      ? 'Ad soyad gerekli'
+                      ? t.validationNameRequired
                       : null,
                 ),
                 const SizedBox(height: 12),
@@ -101,14 +107,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   autocorrect: false,
-                  decoration: const InputDecoration(
-                    labelText: 'E-posta',
-                    prefixIcon: Icon(Icons.mail_outline_rounded),
+                  decoration: InputDecoration(
+                    labelText: t.loginEmail,
+                    prefixIcon: const Icon(Icons.mail_outline_rounded),
                   ),
                   validator: (v) {
-                    final t = v?.trim() ?? '';
-                    if (t.isEmpty) return 'E-posta gerekli';
-                    if (!t.contains('@')) return 'Geçerli bir e-posta gir';
+                    final s = v?.trim() ?? '';
+                    if (s.isEmpty) return t.validationEmailRequired;
+                    if (!s.contains('@')) return t.validationEmailInvalid;
                     return null;
                   },
                 ),
@@ -119,17 +125,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _register(),
                   decoration: InputDecoration(
-                    labelText: 'Şifre',
+                    labelText: t.loginPassword,
                     prefixIcon: const Icon(Icons.lock_outline_rounded),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscure
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined),
+                      icon: Icon(
+                        _obscure
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
                       onPressed: () => setState(() => _obscure = !_obscure),
                     ),
                   ),
                   validator: (v) {
-                    if (v == null || v.length < 6) return 'En az 6 karakter';
+                    if (v == null || v.length < 6) {
+                      return t.validationPasswordMin6;
+                    }
                     return null;
                   },
                 ),
@@ -145,15 +155,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Text('Kayıt Ol'),
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(t.actionRegister),
                 ),
                 const SizedBox(height: 32),
-                const _OrDivider(),
+                _OrDivider(label: t.registerOr),
                 const SizedBox(height: 24),
                 OutlinedButton(
                   onPressed: () => context.go('/login'),
-                  child: const Text('Zaten hesabım var'),
+                  child: Text(t.registerHaveAccountAction),
                 ),
               ],
             ),
@@ -218,18 +231,25 @@ class _ErrorBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.colors.danger.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: context.colors.danger.withValues(alpha: 0.25)),
+        border: Border.all(
+          color: context.colors.danger.withValues(alpha: 0.25),
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline_rounded,
-              size: 16, color: context.colors.danger),
+          Icon(
+            Icons.error_outline_rounded,
+            size: 16,
+            color: context.colors.danger,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
               style: AppTypography.bodyMd.copyWith(
-                  color: context.colors.danger, fontWeight: FontWeight.w500),
+                color: context.colors.danger,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -239,7 +259,8 @@ class _ErrorBanner extends StatelessWidget {
 }
 
 class _OrDivider extends StatelessWidget {
-  const _OrDivider();
+  final String label;
+  const _OrDivider({required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -248,9 +269,10 @@ class _OrDivider extends StatelessWidget {
         Expanded(child: Divider(color: context.colors.outlineSoft)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text('veya',
-              style:
-                  AppTypography.caption.copyWith(color: context.colors.textLo)),
+          child: Text(
+            label,
+            style: AppTypography.caption.copyWith(color: context.colors.textLo),
+          ),
         ),
         Expanded(child: Divider(color: context.colors.outlineSoft)),
       ],

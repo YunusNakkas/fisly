@@ -18,7 +18,8 @@ class CategoryBreakdown {
     required this.count,
   });
 
-  factory CategoryBreakdown.fromJson(Map<String, dynamic> j) => CategoryBreakdown(
+  factory CategoryBreakdown.fromJson(Map<String, dynamic> j) =>
+      CategoryBreakdown(
         categoryId: j['category_id'] as String?,
         name: j['name'] as String,
         icon: j['icon'] as String,
@@ -44,14 +45,14 @@ class ReportSummary {
   });
 
   factory ReportSummary.fromJson(Map<String, dynamic> j) => ReportSummary(
-        year: j['year'] as int,
-        month: j['month'] as int,
-        total: double.parse(j['total'].toString()),
-        expenseCount: j['expense_count'] as int,
-        breakdown: (j['category_breakdown'] as List)
-            .map((e) => CategoryBreakdown.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
+    year: j['year'] as int,
+    month: j['month'] as int,
+    total: double.parse(j['total'].toString()),
+    expenseCount: j['expense_count'] as int,
+    breakdown: (j['category_breakdown'] as List)
+        .map((e) => CategoryBreakdown.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
 }
 
 final reportMonthProvider = StateProvider<DateTime>(
@@ -72,26 +73,34 @@ DateTime _weekMonday(DateTime d) {
   return DateTime(d.year, d.month, d.day - delta);
 }
 
-final reportSummaryProvider = FutureProvider.autoDispose<ReportSummary>((ref) async {
+final reportSummaryProvider = FutureProvider.autoDispose<ReportSummary>((
+  ref,
+) async {
   final period = ref.watch(reportPeriodProvider);
   final api = ref.read(apiClientProvider);
 
   if (period == 'weekly') {
     final weekStart = ref.watch(reportWeekProvider);
     final weekEnd = weekStart.add(const Duration(days: 6));
-    final res = await api.dio.get('/reports/summary', queryParameters: {
-      'period': 'weekly',
-      'from': _fmtDate(weekStart),
-      'to': _fmtDate(weekEnd),
-    });
+    final res = await api.dio.get(
+      '/reports/summary',
+      queryParameters: {
+        'period': 'weekly',
+        'from': _fmtDate(weekStart),
+        'to': _fmtDate(weekEnd),
+      },
+    );
     return ReportSummary.fromJson(res.data as Map<String, dynamic>);
   } else {
     final month = ref.watch(reportMonthProvider);
-    final res = await api.dio.get('/reports/summary', queryParameters: {
-      'period': 'monthly',
-      'year': month.year,
-      'month': month.month,
-    });
+    final res = await api.dio.get(
+      '/reports/summary',
+      queryParameters: {
+        'period': 'monthly',
+        'year': month.year,
+        'month': month.month,
+      },
+    );
     return ReportSummary.fromJson(res.data as Map<String, dynamic>);
   }
 });
@@ -113,17 +122,31 @@ class TrendPoint {
   });
 
   factory TrendPoint.fromJson(Map<String, dynamic> j) => TrendPoint(
-        year: j['year'] as int,
-        month: j['month'] as int,
-        total: double.parse(j['total'].toString()),
-        count: j['count'] as int,
-      );
+    year: j['year'] as int,
+    month: j['month'] as int,
+    total: double.parse(j['total'].toString()),
+    count: j['count'] as int,
+  );
 }
 
-final reportTrendsProvider = FutureProvider.autoDispose<List<TrendPoint>>((ref) async {
+final reportTrendsProvider = FutureProvider.autoDispose<List<TrendPoint>>((
+  ref,
+) async {
   final api = ref.read(apiClientProvider);
-  final res = await api.dio.get('/reports/trends', queryParameters: {'months': 6});
+  final res = await api.dio.get(
+    '/reports/trends',
+    queryParameters: {'months': 6},
+  );
   return (res.data as List)
       .map((e) => TrendPoint.fromJson(e as Map<String, dynamic>))
       .toList();
 });
+
+Future<String> exportReportCsv(WidgetRef ref, DateTime month) async {
+  final api = ref.read(apiClientProvider);
+  final res = await api.dio.get<String>(
+    '/reports/export.csv',
+    queryParameters: {'year': month.year, 'month': month.month},
+  );
+  return res.data ?? '';
+}

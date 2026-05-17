@@ -23,22 +23,22 @@ class Subscription {
   });
 
   factory Subscription.fromJson(Map<String, dynamic> j) => Subscription(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        amount: double.parse(j['amount'].toString()),
-        currency: j['currency'] as String,
-        period: j['period'] as String,
-        nextBillingDate: j['next_billing_date'] as String,
-        status: j['status'] as String,
-        categoryId: j['category_id'] as String?,
-      );
+    id: j['id'] as String,
+    name: j['name'] as String,
+    amount: double.parse(j['amount'].toString()),
+    currency: j['currency'] as String,
+    period: j['period'] as String,
+    nextBillingDate: j['next_billing_date'] as String,
+    status: j['status'] as String,
+    categoryId: j['category_id'] as String?,
+  );
 
   String get periodLabel => switch (period) {
-        'monthly' => 'Aylık',
-        'yearly' => 'Yıllık',
-        'weekly' => 'Haftalık',
-        _ => period,
-      };
+    'monthly' => 'Monthly',
+    'yearly' => 'Yearly',
+    'weekly' => 'Weekly',
+    _ => period,
+  };
 }
 
 class SubscriptionsState {
@@ -46,13 +46,16 @@ class SubscriptionsState {
   final bool isLoading;
   const SubscriptionsState({this.items = const [], this.isLoading = false});
   SubscriptionsState copyWith({List<Subscription>? items, bool? isLoading}) =>
-      SubscriptionsState(items: items ?? this.items, isLoading: isLoading ?? this.isLoading);
+      SubscriptionsState(
+        items: items ?? this.items,
+        isLoading: isLoading ?? this.isLoading,
+      );
 }
 
 final subscriptionsProvider =
     StateNotifierProvider<SubscriptionsNotifier, SubscriptionsState>((ref) {
-  return SubscriptionsNotifier(ref.read(apiClientProvider));
-});
+      return SubscriptionsNotifier(ref.read(apiClientProvider));
+    });
 
 class SubscriptionsNotifier extends StateNotifier<SubscriptionsState> {
   final ApiClient _api;
@@ -81,15 +84,18 @@ class SubscriptionsNotifier extends StateNotifier<SubscriptionsState> {
     required String nextBillingDate,
     String? categoryId,
   }) async {
-    await _api.dio.post('/subscriptions', data: {
-      'name': name,
-      'amount': double.parse(amount.replaceAll(',', '.')),
-      'currency': 'TRY',
-      'period': period,
-      'start_date': startDate,
-      'next_billing_date': nextBillingDate,
-      if (categoryId != null) 'category_id': categoryId,
-    });
+    await _api.dio.post(
+      '/subscriptions',
+      data: {
+        'name': name,
+        'amount': double.parse(amount.replaceAll(',', '.')),
+        'currency': 'TRY',
+        'period': period,
+        'start_date': startDate,
+        'next_billing_date': nextBillingDate,
+        'category_id': ?categoryId,
+      },
+    );
     await load();
   }
 
@@ -100,12 +106,15 @@ class SubscriptionsNotifier extends StateNotifier<SubscriptionsState> {
     required String nextBillingDate,
     String? categoryId,
   }) async {
-    await _api.dio.patch('/subscriptions/$id', data: {
-      'name': name,
-      'amount': double.parse(amount.replaceAll(',', '.')),
-      'next_billing_date': nextBillingDate,
-      if (categoryId != null) 'category_id': categoryId,
-    });
+    await _api.dio.patch(
+      '/subscriptions/$id',
+      data: {
+        'name': name,
+        'amount': double.parse(amount.replaceAll(',', '.')),
+        'next_billing_date': nextBillingDate,
+        'category_id': ?categoryId,
+      },
+    );
     await load();
   }
 

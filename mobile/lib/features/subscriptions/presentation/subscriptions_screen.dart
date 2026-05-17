@@ -5,6 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../subscriptions_provider.dart';
 import '../../categories/categories_provider.dart';
 import '../../../shared/category_avatar.dart';
+import '../../../shared/category_chip_picker.dart';
 import '../../../shared/category_icons.dart';
 import '../../../shared/days_pill.dart';
 import '../../../shared/hero_card.dart';
@@ -12,6 +13,8 @@ import '../../../shared/section_label.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../l10n/localized_copy.dart';
 
 class SubscriptionsScreen extends ConsumerStatefulWidget {
   const SubscriptionsScreen({super.key});
@@ -39,8 +42,9 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
 
     final active = state.items.where((s) => s.status == 'active').toList()
       ..sort((a, b) => a.nextBillingDate.compareTo(b.nextBillingDate));
-    final cancelled =
-        state.items.where((s) => s.status == 'cancelled').toList();
+    final cancelled = state.items
+        .where((s) => s.status == 'cancelled')
+        .toList();
 
     final monthlyTotal = active.fold<double>(0, (sum, s) {
       return sum +
@@ -69,7 +73,10 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
     return Scaffold(
       backgroundColor: context.colors.bg,
       appBar: AppBar(
-        title: Text('Abonelikler', style: AppTypography.titleLg),
+        title: Text(
+          AppLocalizations.of(context).subscriptionsTitle,
+          style: AppTypography.titleLg,
+        ),
       ),
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -96,14 +103,19 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 48),
                       child: Center(
-                        child: Text('Henüz abonelik yok',
-                            style: AppTypography.bodyMd
-                                .copyWith(color: context.colors.textMid)),
+                        child: Text(
+                          AppLocalizations.of(context).subscriptionsEmptyState,
+                          style: AppTypography.bodyMd.copyWith(
+                            color: context.colors.textMid,
+                          ),
+                        ),
                       ),
                     )
                   else ...[
                     if (active.isNotEmpty) ...[
-                      SectionLabel('Aktif (${active.length})'),
+                      SectionLabel(
+                        '${AppLocalizations.of(context).subscriptionsActive} (${active.length})',
+                      ),
                       _SubsCard(
                         subs: active,
                         categoryById: categoryById,
@@ -114,7 +126,9 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                       const SizedBox(height: 18),
                     ],
                     if (cancelled.isNotEmpty) ...[
-                      const SectionLabel('İptal edilmiş'),
+                      SectionLabel(
+                        AppLocalizations.of(context).subscriptionsCancelled,
+                      ),
                       _SubsCard(
                         subs: cancelled,
                         categoryById: categoryById,
@@ -136,19 +150,47 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
   }
 
   Future<void> _confirmCancel(BuildContext context, Subscription sub) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final warn = context.colors.warn;
+    final danger = context.colors.danger;
+    final cancelledText = copyForLocale(
+      context,
+      en: '${sub.name} cancelled',
+      tr: '${sub.name} iptal edildi',
+    );
+    final cancelFailed = copyForLocale(
+      context,
+      en: 'Could not cancel',
+      tr: 'İptal edilemedi',
+    );
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: Text('${sub.name} iptal edilsin mi?'),
-        content: const Text('Geçmiş ödemeler etkilenmez.'),
+        title: Text(
+          copyForLocale(
+            context,
+            en: 'Cancel ${sub.name}?',
+            tr: '${sub.name} iptal edilsin mi?',
+          ),
+        ),
+        content: Text(
+          copyForLocale(
+            context,
+            en: 'Past payments will not be affected.',
+            tr: 'Geçmiş ödemeler etkilenmez.',
+          ),
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, false),
-              child: const Text('Vazgeç')),
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: Text(AppLocalizations.of(context).actionCancel),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, true),
-            child: Text('İptal et',
-                style: TextStyle(color: context.colors.warn)),
+            child: Text(
+              AppLocalizations.of(context).subscriptionsCancelAction,
+              style: TextStyle(color: warn),
+            ),
           ),
         ],
       ),
@@ -157,16 +199,15 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
       try {
         await ref.read(subscriptionsProvider.notifier).cancel(sub.id);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${sub.name} iptal edildi')),
-          );
+          messenger.showSnackBar(SnackBar(content: Text(cancelledText)));
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(
-                content: Text('İptal edilemedi: $e'),
-                backgroundColor: context.colors.danger),
+              content: Text('$cancelFailed: $e'),
+              backgroundColor: danger,
+            ),
           );
         }
       }
@@ -174,19 +215,41 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
   }
 
   Future<void> _confirmDelete(BuildContext context, Subscription sub) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final danger = context.colors.danger;
+    final deleteFailed = copyForLocale(
+      context,
+      en: 'Could not delete',
+      tr: 'Silinemedi',
+    );
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: const Text('Aboneliği sil'),
-        content: Text('"${sub.name}" tamamen silinsin mi?'),
+        title: Text(
+          copyForLocale(
+            context,
+            en: 'Delete subscription',
+            tr: 'Aboneliği sil',
+          ),
+        ),
+        content: Text(
+          copyForLocale(
+            context,
+            en: 'Delete "${sub.name}" permanently?',
+            tr: '"${sub.name}" tamamen silinsin mi?',
+          ),
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, false),
-              child: const Text('Vazgeç')),
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: Text(AppLocalizations.of(context).actionCancel),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, true),
-            child: Text('Sil',
-                style: TextStyle(color: context.colors.danger)),
+            child: Text(
+              AppLocalizations.of(context).actionDelete,
+              style: TextStyle(color: danger),
+            ),
           ),
         ],
       ),
@@ -196,10 +259,11 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
         await ref.read(subscriptionsProvider.notifier).remove(sub.id);
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(
-                content: Text('Silinemedi: $e'),
-                backgroundColor: context.colors.danger),
+              content: Text('$deleteFailed: $e'),
+              backgroundColor: danger,
+            ),
           );
         }
       }
@@ -208,8 +272,11 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
 
   void _showEditSheet(BuildContext context, Subscription sub) {
     final nameController = TextEditingController(text: sub.name);
-    final amountController =
-        TextEditingController(text: sub.amount.toStringAsFixed(2));
+    final amountController = TextEditingController(
+      text: sub.amount.toStringAsFixed(2),
+    );
+    final messenger = ScaffoldMessenger.of(context);
+    final danger = context.colors.danger;
     String? categoryId = sub.categoryId;
     DateTime nextDate =
         DateTime.tryParse(sub.nextBillingDate) ?? DateTime.now();
@@ -221,8 +288,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
       isScrollControlled: true,
       backgroundColor: context.colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
@@ -239,23 +305,33 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
               if (!(formKey.currentState?.validate() ?? false)) return;
               setSheet(() => saving = true);
               try {
-                await ref.read(subscriptionsProvider.notifier).update(
+                await ref
+                    .read(subscriptionsProvider.notifier)
+                    .update(
                       id: sub.id,
                       name: nameController.text.trim(),
                       amount: amountController.text.trim(),
                       nextBillingDate: _fmtDate(nextDate),
                       categoryId: categoryId,
                     );
-                if (ctx.mounted) Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Abonelik güncellendi')),
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      AppLocalizations.of(ctx).subscriptionsUpdated,
+                    ),
+                  ),
                 );
               } catch (e) {
                 if (ctx.mounted) setSheet(() => saving = false);
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
-                      content: Text('Kaydedilemedi: $e'),
-                      backgroundColor: context.colors.danger),
+                    content: Text(
+                      '${copyForLocale(ctx, en: 'Could not save', tr: 'Kaydedilemedi')}: $e',
+                    ),
+                    backgroundColor: danger,
+                  ),
                 );
               }
             }
@@ -266,25 +342,34 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Aboneliği Düzenle', style: AppTypography.titleLg),
+                  Text(
+                    AppLocalizations.of(ctx).subscriptionsEditTitle,
+                    style: AppTypography.titleLg,
+                  ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: nameController,
-                    decoration:
-                        const InputDecoration(labelText: 'Abonelik adı'),
-                    validator: (v) =>
-                        (v?.trim().isEmpty ?? true) ? 'Ad gerekli' : null,
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(ctx).subscriptionsName,
+                    ),
+                    validator: (v) => (v?.trim().isEmpty ?? true)
+                        ? AppLocalizations.of(ctx).commonRequired
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: amountController,
-                    decoration: const InputDecoration(labelText: 'Tutar (TL)'),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(ctx).subscriptionsAmount,
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     validator: (v) {
-                      final d =
-                          double.tryParse(v?.replaceAll(',', '.') ?? '');
-                      if (d == null || d <= 0) return 'Geçerli tutar gir';
+                      final d = double.tryParse(v?.replaceAll(',', '.') ?? '');
+                      if (d == null || d <= 0) {
+                        return AppLocalizations.of(ctx).validationAmountInvalid;
+                      }
                       return null;
                     },
                   ),
@@ -292,31 +377,24 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                   categoriesAsync.when(
                     loading: () => const LinearProgressIndicator(),
                     error: (e, _) => const SizedBox(),
-                    data: (cats) => DropdownButtonFormField<String>(
-                      initialValue: categoryId,
-                      decoration: const InputDecoration(
-                          labelText: 'Kategori (opsiyonel)'),
-                      items: [
-                        const DropdownMenuItem(
-                            value: null, child: Text('Seçme')),
-                        ...cats.map((c) =>
-                            DropdownMenuItem(value: c.id, child: Text(c.name))),
-                      ],
+                    data: (cats) => CategoryChipPicker(
+                      categories: cats,
+                      selectedId: categoryId,
                       onChanged: (v) => setSheet(() => categoryId = v),
                     ),
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     icon: const Icon(Icons.calendar_today_outlined, size: 16),
-                    label:
-                        Text('Sonraki ödeme: ${_fmtDisplay(nextDate)}'),
+                    label: Text(
+                      '${AppLocalizations.of(ctx).subscriptionsNextPayment}: ${_fmtDisplay(nextDate)}',
+                    ),
                     onPressed: () async {
                       final d = await showDatePicker(
                         context: ctx,
                         initialDate: nextDate,
                         firstDate: DateTime.now(),
-                        lastDate:
-                            DateTime.now().add(const Duration(days: 366)),
+                        lastDate: DateTime.now().add(const Duration(days: 366)),
                       );
                       if (d != null) setSheet(() => nextDate = d);
                     },
@@ -329,8 +407,13 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Text('Güncelle'),
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            copyForLocale(ctx, en: 'Update', tr: 'Güncelle'),
+                          ),
                   ),
                 ],
               ),
@@ -344,6 +427,9 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
   void _showAddSheet(BuildContext context) {
     final nameController = TextEditingController();
     final amountController = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
+    final danger = context.colors.danger;
+    final warn = context.colors.warn;
     String period = 'monthly';
     String? categoryId;
     DateTime startDate = DateTime.now();
@@ -356,8 +442,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
       isScrollControlled: true,
       backgroundColor: context.colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (_) => Padding(
         padding: EdgeInsets.only(
@@ -374,7 +459,9 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
               if (!(formKey.currentState?.validate() ?? false)) return;
               setSheet(() => saving = true);
               try {
-                await ref.read(subscriptionsProvider.notifier).add(
+                await ref
+                    .read(subscriptionsProvider.notifier)
+                    .add(
                       name: nameController.text.trim(),
                       amount: amountController.text.trim(),
                       period: period,
@@ -382,9 +469,12 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                       nextBillingDate: _fmtDate(nextDate),
                       categoryId: categoryId,
                     );
-                if (ctx.mounted) Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Abonelik eklendi')),
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(AppLocalizations.of(ctx).subscriptionsSaved),
+                  ),
                 );
               } on DioException catch (e) {
                 final data = e.response?.data;
@@ -393,22 +483,24 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                   final detail = data['detail'];
                   msg = detail is List
                       ? detail.map((d) => d['msg']).join(', ')
-                      : 'Hata: $detail';
+                      : '${copyForLocale(ctx, en: 'Error', tr: 'Hata')}: $detail';
                 } else if (data is String && data.isNotEmpty) {
                   msg = data;
                 } else {
                   msg =
-                      'Sunucu hatası: ${e.response?.statusCode} — ${e.message}';
+                      '${copyForLocale(ctx, en: 'Server error', tr: 'Sunucu hatası')}: ${e.response?.statusCode} — ${e.message}';
                 }
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(msg), backgroundColor: context.colors.danger),
+                messenger.showSnackBar(
+                  SnackBar(content: Text(msg), backgroundColor: danger),
                 );
               } catch (e) {
                 if (ctx.mounted) Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
-                    content: Text('Kaydedildi ama liste yenilenirken hata: $e'),
-                    backgroundColor: context.colors.warn,
+                    content: Text(
+                      '${copyForLocale(ctx, en: 'Saved, but the list could not refresh', tr: 'Kaydedildi ama liste yenilenirken hata')}: $e',
+                    ),
+                    backgroundColor: warn,
                   ),
                 );
               } finally {
@@ -422,69 +514,89 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Abonelik Ekle', style: AppTypography.titleLg),
+                  Text(
+                    AppLocalizations.of(ctx).subscriptionsAddTitle,
+                    style: AppTypography.titleLg,
+                  ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: nameController,
-                    decoration:
-                        const InputDecoration(labelText: 'Abonelik adı'),
-                    validator: (v) =>
-                        (v?.trim().isEmpty ?? true) ? 'Ad gerekli' : null,
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(ctx).subscriptionsName,
+                    ),
+                    validator: (v) => (v?.trim().isEmpty ?? true)
+                        ? AppLocalizations.of(ctx).commonRequired
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: amountController,
-                    decoration: const InputDecoration(labelText: 'Tutar (TL)'),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(ctx).subscriptionsAmount,
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     validator: (v) {
-                      final d =
-                          double.tryParse(v?.replaceAll(',', '.') ?? '');
-                      if (d == null || d <= 0) return 'Geçerli tutar gir';
+                      final d = double.tryParse(v?.replaceAll(',', '.') ?? '');
+                      if (d == null || d <= 0) {
+                        return AppLocalizations.of(ctx).validationAmountInvalid;
+                      }
                       return null;
                     },
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: period,
-                    decoration: const InputDecoration(labelText: 'Periyot'),
-                    items: const [
-                      DropdownMenuItem(value: 'monthly', child: Text('Aylık')),
-                      DropdownMenuItem(value: 'yearly', child: Text('Yıllık')),
-                      DropdownMenuItem(value: 'weekly', child: Text('Haftalık')),
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(
+                        ctx,
+                      ).subscriptionsPeriodLabel,
+                    ),
+                    items: [
+                      DropdownMenuItem(
+                        value: 'monthly',
+                        child: Text(
+                          AppLocalizations.of(ctx).subscriptionsPeriodMonthly,
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'yearly',
+                        child: Text(
+                          AppLocalizations.of(ctx).subscriptionsPeriodYearly,
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'weekly',
+                        child: Text(
+                          AppLocalizations.of(ctx).subscriptionsPeriodWeekly,
+                        ),
+                      ),
                     ],
-                    onChanged: (v) =>
-                        setSheet(() => period = v ?? 'monthly'),
+                    onChanged: (v) => setSheet(() => period = v ?? 'monthly'),
                   ),
                   const SizedBox(height: 12),
                   categoriesAsync.when(
                     loading: () => const LinearProgressIndicator(),
                     error: (e, _) => const SizedBox(),
-                    data: (cats) => DropdownButtonFormField<String>(
-                      initialValue: categoryId,
-                      decoration: const InputDecoration(
-                          labelText: 'Kategori (opsiyonel)'),
-                      items: [
-                        const DropdownMenuItem(
-                            value: null, child: Text('Seçme')),
-                        ...cats.map((c) =>
-                            DropdownMenuItem(value: c.id, child: Text(c.name))),
-                      ],
+                    data: (cats) => CategoryChipPicker(
+                      categories: cats,
+                      selectedId: categoryId,
                       onChanged: (v) => setSheet(() => categoryId = v),
                     ),
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     icon: const Icon(Icons.calendar_today_outlined, size: 16),
-                    label:
-                        Text('Sonraki ödeme: ${_fmtDisplay(nextDate)}'),
+                    label: Text(
+                      '${AppLocalizations.of(ctx).subscriptionsNextPayment}: ${_fmtDisplay(nextDate)}',
+                    ),
                     onPressed: () async {
                       final d = await showDatePicker(
                         context: ctx,
                         initialDate: nextDate,
                         firstDate: DateTime.now(),
-                        lastDate:
-                            DateTime.now().add(const Duration(days: 366)),
+                        lastDate: DateTime.now().add(const Duration(days: 366)),
                       );
                       if (d != null) setSheet(() => nextDate = d);
                     },
@@ -497,8 +609,11 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Text('Kaydet'),
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(AppLocalizations.of(ctx).actionSave),
                   ),
                 ],
               ),
@@ -536,18 +651,24 @@ class _HeroBanner extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const HeroLabel('Aylık Abonelik Toplamı'),
+          HeroLabel(
+            copyForLocale(
+              context,
+              en: 'Monthly Subscription Total',
+              tr: 'Aylık Abonelik Toplamı',
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(_fmtTRY(monthlyTotal),
-              style: AppTypography.displayMd.copyWith(color: Colors.white)),
+          Text(
+            _fmtTRY(monthlyTotal),
+            style: AppTypography.displayMd.copyWith(color: Colors.white),
+          ),
           if (upcomingCount > 0) ...[
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.only(top: 14),
               decoration: const BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: Color(0x1AFFFFFF)),
-                ),
+                border: Border(top: BorderSide(color: Color(0x1AFFFFFF))),
               ),
               child: Row(
                 children: [
@@ -556,7 +677,11 @@ class _HeroBanner extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'BU HAFTA',
+                          copyForLocale(
+                            context,
+                            en: 'THIS WEEK',
+                            tr: 'BU HAFTA',
+                          ),
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.white.withValues(alpha: 0.6),
@@ -566,7 +691,11 @@ class _HeroBanner extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '$upcomingCount ödeme · ${_fmtTRY(upcomingTotal)}',
+                          copyForLocale(
+                            context,
+                            en: '$upcomingCount payments · ${_fmtTRY(upcomingTotal)}',
+                            tr: '$upcomingCount ödeme · ${_fmtTRY(upcomingTotal)}',
+                          ),
                           style: const TextStyle(
                             fontSize: 13,
                             color: Colors.white,
@@ -576,8 +705,11 @@ class _HeroBanner extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Icon(Icons.notifications_outlined,
-                      color: context.colors.heroAccent, size: 20),
+                  Icon(
+                    Icons.notifications_outlined,
+                    color: context.colors.heroAccent,
+                    size: 20,
+                  ),
                 ],
               ),
             ),
@@ -614,8 +746,7 @@ class _SubsCard extends StatelessWidget {
       child: Column(
         children: [
           for (int i = 0; i < subs.length; i++) ...[
-            if (i > 0)
-              Divider(height: 1, color: context.colors.outlineSoft),
+            if (i > 0) Divider(height: 1, color: context.colors.outlineSoft),
             _SubRow(
               sub: subs[i],
               category: subs[i].categoryId != null
@@ -677,7 +808,9 @@ class _SubRow extends StatelessWidget {
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: isCancelled ? context.colors.textLo : context.colors.primary,
+              color: isCancelled
+                  ? context.colors.textLo
+                  : context.colors.primary,
             ),
           ),
         ),
@@ -721,8 +854,8 @@ class _SubRow extends StatelessWidget {
                     const SizedBox(height: 1),
                     Text(
                       isCancelled
-                          ? '${sub.periodLabel} · İptal edildi'
-                          : '${sub.periodLabel} · Sonraki: ${_displayDate(sub.nextBillingDate)}',
+                          ? '${periodLabel(context, sub.period)} · ${AppLocalizations.of(context).subscriptionsCancelled}'
+                          : '${periodLabel(context, sub.period)} · ${AppLocalizations.of(context).subscriptionsNextPayment}: ${_displayDate(sub.nextBillingDate)}',
                       style: AppTypography.caption,
                     ),
                   ],
@@ -731,22 +864,35 @@ class _SubRow extends StatelessWidget {
               const SizedBox(width: 8),
               Text(_fmtTRY(sub.amount), style: AppTypography.amountLg),
               PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert,
-                    size: 18, color: context.colors.textLo),
+                icon: Icon(
+                  Icons.more_vert,
+                  size: 18,
+                  color: context.colors.textLo,
+                ),
                 onSelected: (v) {
                   if (v == 'edit') onEdit();
                   if (v == 'cancel' && onCancel != null) onCancel!();
                   if (v == 'delete') onDelete();
                 },
                 itemBuilder: (_) => [
-                  const PopupMenuItem(value: 'edit', child: Text('Düzenle')),
-                  if (!isCancelled)
-                    const PopupMenuItem(
-                        value: 'cancel', child: Text('İptal et')),
                   PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Sil',
-                          style: TextStyle(color: context.colors.danger))),
+                    value: 'edit',
+                    child: Text(AppLocalizations.of(context).actionEdit),
+                  ),
+                  if (!isCancelled)
+                    PopupMenuItem(
+                      value: 'cancel',
+                      child: Text(
+                        AppLocalizations.of(context).subscriptionsCancelAction,
+                      ),
+                    ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text(
+                      AppLocalizations.of(context).actionDelete,
+                      style: TextStyle(color: context.colors.danger),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -839,14 +985,18 @@ class _SubsDonutCardState extends State<_SubsDonutCard> {
       final cat = catByKey[e.key];
       final color = cat?.color ?? fallbackColors[fi++ % fallbackColors.length];
       return _SubBreakdown(
-        label: cat?.name ?? 'Kategorisiz',
+        label: localizedCategoryName(
+          context,
+          cat?.name,
+          fallbackEn: 'Uncategorized',
+          fallbackTr: 'Kategorisiz',
+        ),
         colorHex: color,
         iconKey: cat?.icon,
         categoryId: idByKey[e.key],
         monthly: e.value,
       );
-    }).toList()
-      ..sort((a, b) => b.monthly.compareTo(a.monthly));
+    }).toList()..sort((a, b) => b.monthly.compareTo(a.monthly));
     return result;
   }
 
@@ -868,8 +1018,9 @@ class _SubsDonutCardState extends State<_SubsDonutCard> {
       );
     }).toList();
 
-    final selected =
-        _touched >= 0 && _touched < breakdown.length ? breakdown[_touched] : null;
+    final selected = _touched >= 0 && _touched < breakdown.length
+        ? breakdown[_touched]
+        : null;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -881,7 +1032,7 @@ class _SubsDonutCardState extends State<_SubsDonutCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Kategori Dağılımı',
+            AppLocalizations.of(context).reportsCategoryBreakdown,
             style: AppTypography.bodyLg.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 16),
@@ -915,31 +1066,45 @@ class _SubsDonutCardState extends State<_SubsDonutCard> {
                   mainAxisSize: MainAxisSize.min,
                   children: selected != null
                       ? [
-                          Text(selected.label,
-                              style: AppTypography.caption,
-                              textAlign: TextAlign.center),
+                          Text(
+                            selected.label,
+                            style: AppTypography.caption,
+                            textAlign: TextAlign.center,
+                          ),
                           const SizedBox(height: 2),
-                          Text(_fmtTRY(selected.monthly),
-                              style: AppTypography.displaySm),
+                          Text(
+                            _fmtTRY(selected.monthly),
+                            style: AppTypography.displaySm,
+                          ),
                           const SizedBox(height: 2),
                           Text(
                             '${((selected.monthly / widget.monthlyTotal) * 100).toStringAsFixed(1)}%',
-                            style: AppTypography.labelXs
-                                .copyWith(color: context.colors.textLo,
-                                    fontWeight: FontWeight.w600),
+                            style: AppTypography.labelXs.copyWith(
+                              color: context.colors.textLo,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ]
                       : [
-                          Text('AYLIK',
-                              style: AppTypography.labelSm),
-                          const SizedBox(height: 2),
-                          Text(_fmtTRY(widget.monthlyTotal),
-                              style: AppTypography.displaySm),
+                          Text(
+                            AppLocalizations.of(
+                              context,
+                            ).subscriptionsPeriodMonthly.toUpperCase(),
+                            style: AppTypography.labelSm,
+                          ),
                           const SizedBox(height: 2),
                           Text(
-                            '${breakdown.length} kategori',
-                            style: AppTypography.caption
-                                .copyWith(fontSize: 11),
+                            _fmtTRY(widget.monthlyTotal),
+                            style: AppTypography.displaySm,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            copyForLocale(
+                              context,
+                              en: '${breakdown.length} categories',
+                              tr: '${breakdown.length} kategori',
+                            ),
+                            style: AppTypography.caption.copyWith(fontSize: 11),
                           ),
                         ],
                 ),
@@ -989,30 +1154,30 @@ class _SubBreakdownRow extends StatelessWidget {
               Container(
                 width: 10,
                 height: 10,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                ),
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   item.label,
                   style: AppTypography.bodyMd.copyWith(
-                    fontWeight:
-                        isSelected ? FontWeight.w700 : FontWeight.w500,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
               ),
               Text(
                 '$pct%',
-                style: AppTypography.caption
-                    .copyWith(color: context.colors.textLo),
+                style: AppTypography.caption.copyWith(
+                  color: context.colors.textLo,
+                ),
               ),
               const SizedBox(width: 8),
-              Text(_fmtTRY(item.monthly),
-                  style: AppTypography.bodyMd
-                      .copyWith(fontWeight: FontWeight.w600)),
+              Text(
+                _fmtTRY(item.monthly),
+                style: AppTypography.bodyMd.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 6),

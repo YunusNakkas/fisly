@@ -6,11 +6,11 @@ enum FeedbackKind { bug, suggestion, complaint, other }
 extension FeedbackKindLabel on FeedbackKind {
   String get apiValue => name;
   String get label => switch (this) {
-        FeedbackKind.bug => 'Hata bildirimi',
-        FeedbackKind.suggestion => 'Öneri',
-        FeedbackKind.complaint => 'Şikayet',
-        FeedbackKind.other => 'Diğer',
-      };
+    FeedbackKind.bug => 'Bug report',
+    FeedbackKind.suggestion => 'Suggestion',
+    FeedbackKind.complaint => 'Complaint',
+    FeedbackKind.other => 'Other',
+  };
 }
 
 final feedbackSubmitProvider = Provider((ref) {
@@ -26,10 +26,9 @@ class FeedbackSubmitter {
     required String subject,
     required String message,
   }) async {
-    await _api.dio.post('/feedback', data: {
-      'kind': kind.apiValue,
-      'subject': subject,
-      'message': message,
-    });
+    await _api.dio.post(
+      '/feedback',
+      data: {'kind': kind.apiValue, 'subject': subject, 'message': message},
+    );
   }
 }

@@ -25,9 +25,11 @@ class ExpensesState {
   }
 }
 
-final expensesProvider = StateNotifierProvider<ExpensesNotifier, ExpensesState>((ref) {
-  return ExpensesNotifier(ref.read(apiClientProvider));
-});
+final expensesProvider = StateNotifierProvider<ExpensesNotifier, ExpensesState>(
+  (ref) {
+    return ExpensesNotifier(ref.read(apiClientProvider));
+  },
+);
 
 class ExpensesNotifier extends StateNotifier<ExpensesState> {
   final ApiClient _api;
@@ -39,18 +41,21 @@ class ExpensesNotifier extends StateNotifier<ExpensesState> {
     final from = state.month;
     final to = DateTime(from.year, from.month + 1, 1);
     try {
-      final res = await _api.dio.get('/expenses', queryParameters: {
-        'from': from.toUtc().toIso8601String(),
-        'to': to.toUtc().toIso8601String(),
-      });
+      final res = await _api.dio.get(
+        '/expenses',
+        queryParameters: {
+          'from': from.toUtc().toIso8601String(),
+          'to': to.toUtc().toIso8601String(),
+        },
+      );
       if (!mounted) return;
       state = state.copyWith(
         expenses: List<Map<String, dynamic>>.from(res.data),
         isLoading: false,
       );
     } catch (_) {
-      // 401 olursa interceptor refresh denedi; başarısızsa auth state anonymous olur
-      // ve router /login'e yönlendirir. Burada sadece isLoading'i kapatıyoruz.
+      // If a 401 occurs, the interceptor already tried refresh. On failure,
+      // auth state becomes anonymous and the router redirects to /login.
       if (mounted) state = state.copyWith(isLoading: false);
     }
   }
@@ -66,13 +71,16 @@ class ExpensesNotifier extends StateNotifier<ExpensesState> {
     String? merchant,
     String? note,
   }) async {
-    await _api.dio.post('/expenses', data: {
-      'amount': double.parse(amount.replaceAll(',', '.')),
-      'category_id': categoryId,
-      'merchant': merchant,
-      'note': note,
-      'currency': 'TRY',
-    });
+    await _api.dio.post(
+      '/expenses',
+      data: {
+        'amount': double.parse(amount.replaceAll(',', '.')),
+        'category_id': categoryId,
+        'merchant': merchant,
+        'note': note,
+        'currency': 'TRY',
+      },
+    );
     await load();
   }
 
@@ -84,13 +92,16 @@ class ExpensesNotifier extends StateNotifier<ExpensesState> {
     String? note,
     DateTime? spentAt,
   }) async {
-    await _api.dio.patch('/expenses/$id', data: {
-      'amount': double.parse(amount.replaceAll(',', '.')),
-      'category_id': categoryId,
-      'merchant': merchant,
-      'note': note,
-      if (spentAt != null) 'spent_at': spentAt.toUtc().toIso8601String(),
-    });
+    await _api.dio.patch(
+      '/expenses/$id',
+      data: {
+        'amount': double.parse(amount.replaceAll(',', '.')),
+        'category_id': categoryId,
+        'merchant': merchant,
+        'note': note,
+        if (spentAt != null) 'spent_at': spentAt.toUtc().toIso8601String(),
+      },
+    );
     await load();
   }
 
@@ -112,7 +123,9 @@ class ExpensesNotifier extends StateNotifier<ExpensesState> {
   void undoRemove(Map<String, dynamic> expense) {
     if (!mounted) return;
     final updated = [...state.expenses, expense]
-      ..sort((a, b) => (b['spent_at'] as String).compareTo(a['spent_at'] as String));
+      ..sort(
+        (a, b) => (b['spent_at'] as String).compareTo(a['spent_at'] as String),
+      );
     state = state.copyWith(expenses: updated);
   }
 
@@ -120,7 +133,7 @@ class ExpensesNotifier extends StateNotifier<ExpensesState> {
     try {
       await _api.dio.delete('/expenses/$id');
     } catch (_) {
-      // Sessizce başarısız ol; kullanıcı pull-to-refresh ile senkronize edebilir
+      // Fail silently; the user can sync with pull-to-refresh.
     }
   }
 }

@@ -19,13 +19,13 @@ class Category {
   });
 
   factory Category.fromJson(Map<String, dynamic> j) => Category(
-        id: j['id'] as String,
-        userId: j['user_id'] as String?,
-        name: j['name'] as String,
-        icon: j['icon'] as String,
-        color: j['color'] as String,
-        isSystem: j['is_system'] as bool,
-      );
+    id: j['id'] as String,
+    userId: j['user_id'] as String?,
+    name: j['name'] as String,
+    icon: j['icon'] as String,
+    color: j['color'] as String,
+    isSystem: j['is_system'] as bool,
+  );
 }
 
 class CategoriesNotifier extends AsyncNotifier<List<Category>> {
@@ -44,11 +44,10 @@ class CategoriesNotifier extends AsyncNotifier<List<Category>> {
     required String color,
   }) async {
     final api = ref.read(apiClientProvider);
-    await api.dio.post('/categories', data: {
-      'name': name,
-      'icon': icon,
-      'color': color,
-    });
+    await api.dio.post(
+      '/categories',
+      data: {'name': name, 'icon': icon, 'color': color},
+    );
     ref.invalidateSelf();
     await future;
   }
@@ -79,4 +78,5 @@ class CategoriesNotifier extends AsyncNotifier<List<Category>> {
 
 final categoriesProvider =
     AsyncNotifierProvider<CategoriesNotifier, List<Category>>(
-        CategoriesNotifier.new);
+      CategoriesNotifier.new,
+    );

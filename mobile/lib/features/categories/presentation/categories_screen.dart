@@ -8,6 +8,8 @@ import '../../../shared/section_label.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../l10n/localized_copy.dart';
 
 class CategoriesScreen extends ConsumerWidget {
   const CategoriesScreen({super.key});
@@ -18,11 +20,19 @@ class CategoriesScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: context.colors.bg,
-      appBar: AppBar(title: Text('Kategoriler', style: AppTypography.titleLg)),
+      appBar: AppBar(
+        title: Text(
+          AppLocalizations.of(context).categoriesTitle,
+          style: AppTypography.titleLg,
+        ),
+      ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
-          child: Text('Yüklenemedi: $e', style: AppTypography.caption),
+          child: Text(
+            '${copyForLocale(context, en: 'Could not load', tr: 'Yüklenemedi')}: $e',
+            style: AppTypography.caption,
+          ),
         ),
         data: (cats) {
           final system = cats.where((c) => c.isSystem).toList();
@@ -33,14 +43,14 @@ class CategoriesScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
               children: [
                 if (system.isNotEmpty) ...[
-                  const SectionLabel('Sistem kategorileri'),
+                  SectionLabel(AppLocalizations.of(context).categoriesSystem),
                   _CategoriesCard(categories: system),
                   const SizedBox(height: 18),
                 ],
                 SectionLabel(
                   mine.isNotEmpty
-                      ? 'Kendi kategorilerin (${mine.length})'
-                      : 'Kendi kategorilerin',
+                      ? '${AppLocalizations.of(context).categoriesUser} (${mine.length})'
+                      : AppLocalizations.of(context).categoriesUser,
                 ),
                 if (mine.isEmpty)
                   Container(
@@ -52,13 +62,18 @@ class CategoriesScreen extends ConsumerWidget {
                     child: Column(
                       children: [
                         Text(
-                          'Henüz özel kategorin yok',
-                          style: AppTypography.bodyLg
-                              .copyWith(fontWeight: FontWeight.w600),
+                          AppLocalizations.of(context).categoriesEmptyState,
+                          style: AppTypography.bodyLg.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Alttan + ile yeni kategori ekleyebilirsin.',
+                          copyForLocale(
+                            context,
+                            en: 'Use the + button below to add a new category.',
+                            tr: 'Alttan + ile yeni kategori ekleyebilirsin.',
+                          ),
                           textAlign: TextAlign.center,
                           style: AppTypography.caption,
                         ),
@@ -68,12 +83,22 @@ class CategoriesScreen extends ConsumerWidget {
                 else
                   _CategoriesCard(
                     categories: mine,
-                    onEdit: (c) => _showFormSheet(context, ref,
-                        title: 'Kategoriyi Düzenle', existing: c),
+                    onEdit: (c) => _showFormSheet(
+                      context,
+                      ref,
+                      title: AppLocalizations.of(context).categoriesEditTitle,
+                      existing: c,
+                    ),
                     onDelete: (c) => _confirmDelete(context, ref, c),
                   ),
                 const SizedBox(height: 18),
-                const SectionLabel('Renk paleti'),
+                SectionLabel(
+                  copyForLocale(
+                    context,
+                    en: 'Color palette',
+                    tr: 'Renk paleti',
+                  ),
+                ),
                 _ColorPaletteCard(),
               ],
             ),
@@ -82,29 +107,43 @@ class CategoriesScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'fab_categories',
-        onPressed: () =>
-            _showFormSheet(context, ref, title: 'Kategori Ekle'),
+        onPressed: () => _showFormSheet(
+          context,
+          ref,
+          title: AppLocalizations.of(context).categoriesAddTitle,
+        ),
         child: const Icon(Icons.add),
       ),
     );
   }
 
   Future<void> _confirmDelete(
-      BuildContext context, WidgetRef ref, Category c) async {
+    BuildContext context,
+    WidgetRef ref,
+    Category c,
+  ) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: const Text('Kategoriyi sil'),
+        title: Text(AppLocalizations.of(context).categoriesDeleteTitle),
         content: Text(
-            '"${c.name}" silinsin mi? Bu kategoriye bağlı harcamalar etkilenebilir.'),
+          copyForLocale(
+            context,
+            en: 'Delete "${localizedCategoryName(context, c.name)}"? Expenses linked to this category may be affected.',
+            tr: '"${localizedCategoryName(context, c.name)}" silinsin mi? Bu kategoriye bağlı harcamalar etkilenebilir.',
+          ),
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, false),
-              child: const Text('Vazgeç')),
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: Text(AppLocalizations.of(context).actionCancel),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, true),
-            child: Text('Sil',
-                style: TextStyle(color: context.colors.danger)),
+            child: Text(
+              AppLocalizations.of(context).actionDelete,
+              style: TextStyle(color: context.colors.danger),
+            ),
           ),
         ],
       ),
@@ -116,8 +155,11 @@ class CategoriesScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Silinemedi: $e'),
-              backgroundColor: context.colors.danger),
+            content: Text(
+              '${copyForLocale(context, en: 'Could not delete', tr: 'Silinemedi')}: $e',
+            ),
+            backgroundColor: context.colors.danger,
+          ),
         );
       }
     }
@@ -140,8 +182,7 @@ class CategoriesScreen extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: context.colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (_) => Padding(
         padding: EdgeInsets.only(
@@ -154,6 +195,12 @@ class CategoriesScreen extends ConsumerWidget {
           builder: (ctx, setSheet) {
             Future<void> save() async {
               if (!(formKey.currentState?.validate() ?? false)) return;
+              final errorPrefix = copyForLocale(ctx, en: 'Error', tr: 'Hata');
+              final serverErrorPrefix = copyForLocale(
+                ctx,
+                en: 'Server error',
+                tr: 'Sunucu hatası',
+              );
               setSheet(() => saving = true);
               try {
                 final notifier = ref.read(categoriesProvider.notifier);
@@ -175,9 +222,11 @@ class CategoriesScreen extends ConsumerWidget {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(existing == null
-                          ? 'Kategori eklendi'
-                          : 'Kategori güncellendi'),
+                      content: Text(
+                        existing == null
+                            ? AppLocalizations.of(context).categoriesSaved
+                            : AppLocalizations.of(context).categoriesUpdated,
+                      ),
                     ),
                   );
                 }
@@ -188,26 +237,28 @@ class CategoriesScreen extends ConsumerWidget {
                   final detail = data['detail'];
                   msg = detail is List
                       ? detail.map((d) => d['msg']).join(', ')
-                      : 'Hata: $detail';
+                      : '$errorPrefix: $detail';
                 } else if (data is String && data.isNotEmpty) {
                   msg = data;
                 } else {
                   msg =
-                      'Sunucu hatası: ${e.response?.statusCode} — ${e.message}';
+                      '$serverErrorPrefix: ${e.response?.statusCode} — ${e.message}';
                 }
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                        content: Text(msg),
-                        backgroundColor: context.colors.danger),
+                      content: Text(msg),
+                      backgroundColor: context.colors.danger,
+                    ),
                   );
                 }
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                        content: Text('Hata: $e'),
-                        backgroundColor: context.colors.danger),
+                      content: Text('$errorPrefix: $e'),
+                      backgroundColor: context.colors.danger,
+                    ),
                   );
                 }
               } finally {
@@ -233,20 +284,34 @@ class CategoriesScreen extends ConsumerWidget {
                             color: colorFromHex(selectedColor),
                             borderRadius: BorderRadius.circular(AppRadius.md),
                           ),
-                          child: Icon(iconForCategory(selectedIcon),
-                              color: Colors.white, size: 24),
+                          child: Icon(
+                            iconForCategory(selectedIcon),
+                            color: Colors.white,
+                            size: 24,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: TextFormField(
                             controller: nameController,
-                            decoration:
-                                const InputDecoration(labelText: 'İsim'),
+                            decoration: InputDecoration(
+                              labelText: AppLocalizations.of(
+                                ctx,
+                              ).categoriesNameLabel,
+                            ),
                             textCapitalization: TextCapitalization.sentences,
                             validator: (v) {
                               final t = v?.trim() ?? '';
-                              if (t.isEmpty) return 'İsim gerekli';
-                              if (t.length > 100) return 'En fazla 100 karakter';
+                              if (t.isEmpty) {
+                                return AppLocalizations.of(ctx).commonRequired;
+                              }
+                              if (t.length > 100) {
+                                return copyForLocale(
+                                  ctx,
+                                  en: 'Maximum 100 characters',
+                                  tr: 'En fazla 100 karakter',
+                                );
+                              }
                               return null;
                             },
                           ),
@@ -254,10 +319,13 @@ class CategoriesScreen extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    Text('İkon',
-                        style: AppTypography.caption.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: context.colors.textMid)),
+                    Text(
+                      AppLocalizations.of(ctx).categoriesIconLabel,
+                      style: AppTypography.caption.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: context.colors.textMid,
+                      ),
+                    ),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
@@ -274,10 +342,13 @@ class CategoriesScreen extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    Text('Renk',
-                        style: AppTypography.caption.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: context.colors.textMid)),
+                    Text(
+                      AppLocalizations.of(ctx).categoriesColorLabel,
+                      style: AppTypography.caption.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: context.colors.textMid,
+                      ),
+                    ),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
@@ -287,8 +358,7 @@ class CategoriesScreen extends ConsumerWidget {
                           _ColorChoice(
                             hex: hex,
                             selected: hex == selectedColor,
-                            onTap: () =>
-                                setSheet(() => selectedColor = hex),
+                            onTap: () => setSheet(() => selectedColor = hex),
                           ),
                       ],
                     ),
@@ -300,8 +370,19 @@ class CategoriesScreen extends ConsumerWidget {
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
-                          : Text(existing == null ? 'Kaydet' : 'Güncelle'),
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              existing == null
+                                  ? AppLocalizations.of(ctx).actionSave
+                                  : copyForLocale(
+                                      ctx,
+                                      en: 'Update',
+                                      tr: 'Güncelle',
+                                    ),
+                            ),
                     ),
                   ],
                 ),
@@ -320,11 +401,7 @@ class _CategoriesCard extends StatelessWidget {
   final void Function(Category)? onEdit;
   final void Function(Category)? onDelete;
 
-  const _CategoriesCard({
-    required this.categories,
-    this.onEdit,
-    this.onDelete,
-  });
+  const _CategoriesCard({required this.categories, this.onEdit, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -338,13 +415,13 @@ class _CategoriesCard extends StatelessWidget {
         child: Column(
           children: [
             for (int i = 0; i < categories.length; i++) ...[
-              if (i > 0)
-                Divider(height: 1, color: context.colors.outlineSoft),
+              if (i > 0) Divider(height: 1, color: context.colors.outlineSoft),
               _CategoryRow(
                 category: categories[i],
                 onEdit: onEdit == null ? null : () => onEdit!(categories[i]),
-                onDelete:
-                    onDelete == null ? null : () => onDelete!(categories[i]),
+                onDelete: onDelete == null
+                    ? null
+                    : () => onDelete!(categories[i]),
               ),
             ],
           ],
@@ -359,11 +436,7 @@ class _CategoryRow extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
-  const _CategoryRow({
-    required this.category,
-    this.onEdit,
-    this.onDelete,
-  });
+  const _CategoryRow({required this.category, this.onEdit, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -385,31 +458,45 @@ class _CategoryRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(category.name,
-                      style: AppTypography.bodyLg
-                          .copyWith(fontWeight: FontWeight.w600)),
+                  Text(
+                    localizedCategoryName(context, category.name),
+                    style: AppTypography.bodyLg.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   if (category.isSystem) ...[
                     const SizedBox(height: 2),
-                    Text('Sistem',
-                        style: AppTypography.caption.copyWith(fontSize: 11)),
+                    Text(
+                      AppLocalizations.of(context).categoriesSystem,
+                      style: AppTypography.caption.copyWith(fontSize: 11),
+                    ),
                   ],
                 ],
               ),
             ),
             if (onEdit != null || onDelete != null)
               PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert,
-                    size: 18, color: context.colors.textLo),
+                icon: Icon(
+                  Icons.more_vert,
+                  size: 18,
+                  color: context.colors.textLo,
+                ),
                 onSelected: (v) {
                   if (v == 'edit') onEdit?.call();
                   if (v == 'delete') onDelete?.call();
                 },
                 itemBuilder: (_) => [
-                  const PopupMenuItem(value: 'edit', child: Text('Düzenle')),
                   PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Sil',
-                          style: TextStyle(color: context.colors.danger))),
+                    value: 'edit',
+                    child: Text(AppLocalizations.of(context).actionEdit),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text(
+                      AppLocalizations.of(context).actionDelete,
+                      style: TextStyle(color: context.colors.danger),
+                    ),
+                  ),
                 ],
               ),
           ],

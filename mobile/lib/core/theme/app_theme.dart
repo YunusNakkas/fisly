@@ -9,7 +9,9 @@ import 'app_typography.dart';
 // ─── Theme mode provider ───────────────────────────────────────────
 const _kThemeMode = 'fisly_theme_mode';
 
-final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {
+final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>((
+  ref,
+) {
   return ThemeModeNotifier();
 });
 
@@ -73,10 +75,7 @@ ThemeData _build(AppColorScheme c, Brightness brightness) {
     scaffoldBackgroundColor: c.bg,
     extensions: [c],
     textTheme: GoogleFonts.plusJakartaSansTextTheme(
-      baseTextTheme.apply(
-        bodyColor: c.textHi,
-        displayColor: c.textHi,
-      ),
+      baseTextTheme.apply(bodyColor: c.textHi, displayColor: c.textHi),
     ),
     appBarTheme: AppBarTheme(
       backgroundColor: c.bg,
@@ -187,9 +186,7 @@ ThemeData _build(AppColorScheme c, Brightness brightness) {
       ),
     ),
     dropdownMenuTheme: DropdownMenuThemeData(
-      menuStyle: MenuStyle(
-        backgroundColor: WidgetStatePropertyAll(c.surface),
-      ),
+      menuStyle: MenuStyle(backgroundColor: WidgetStatePropertyAll(c.surface)),
     ),
   );
 }

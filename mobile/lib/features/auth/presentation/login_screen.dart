@@ -5,6 +5,7 @@ import '../auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../l10n/app_localizations.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -35,35 +36,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
     try {
-      await ref.read(authProvider.notifier).login(
-            _emailController.text.trim(),
-            _passwordController.text,
-          );
+      await ref
+          .read(authProvider.notifier)
+          .login(_emailController.text.trim(), _passwordController.text);
     } catch (e) {
       if (!mounted) return;
+      final t = AppLocalizations.of(context);
       setState(() {
-        _error = _friendlyError(e);
+        _error = _friendlyError(e, t);
         _loading = false;
       });
     }
   }
 
-  String _friendlyError(Object e) {
+  String _friendlyError(Object e, AppLocalizations t) {
     final s = e.toString();
-    if (s.contains('connection') || s.contains('SocketException')) {
-      return 'Sunucuya bağlanılamadı';
+    if (s.contains('401') || s.contains('incorrect')) {
+      return t.loginFailed;
     }
-    if (s.contains('401') || s.contains('hatalı') || s.contains('incorrect')) {
-      return 'E-posta veya şifre hatalı';
-    }
-    if (s.contains('timed out') || s.contains('timeout')) {
-      return 'Bağlantı zaman aşımına uğradı';
-    }
-    return 'Giriş yapılamadı, tekrar dene';
+    return t.commonError;
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: context.colors.bg,
       body: SafeArea(
@@ -78,15 +74,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const _BrandMark(),
                 const SizedBox(height: 40),
                 Text(
-                  'Tekrar hoş geldin',
-                  style: AppTypography.displaySm
-                      .copyWith(fontWeight: FontWeight.w700),
+                  t.loginTitle,
+                  style: AppTypography.displaySm.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Harcamalarını takip etmeye devam et.',
-                  style:
-                      AppTypography.bodyLg.copyWith(color: context.colors.textMid),
+                  t.loginSubtitle,
+                  style: AppTypography.bodyLg.copyWith(
+                    color: context.colors.textMid,
+                  ),
                 ),
                 const SizedBox(height: 36),
                 TextFormField(
@@ -94,14 +92,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   autocorrect: false,
-                  decoration: const InputDecoration(
-                    labelText: 'E-posta',
-                    prefixIcon: Icon(Icons.mail_outline_rounded),
+                  decoration: InputDecoration(
+                    labelText: t.loginEmail,
+                    prefixIcon: const Icon(Icons.mail_outline_rounded),
                   ),
                   validator: (v) {
-                    final t = v?.trim() ?? '';
-                    if (t.isEmpty) return 'E-posta gerekli';
-                    if (!t.contains('@')) return 'Geçerli bir e-posta gir';
+                    final s = v?.trim() ?? '';
+                    if (s.isEmpty) return t.validationEmailRequired;
+                    if (!s.contains('@')) return t.validationEmailInvalid;
                     return null;
                   },
                 ),
@@ -112,17 +110,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _login(),
                   decoration: InputDecoration(
-                    labelText: 'Şifre',
+                    labelText: t.loginPassword,
                     prefixIcon: const Icon(Icons.lock_outline_rounded),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscure
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined),
+                      icon: Icon(
+                        _obscure
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
                       onPressed: () => setState(() => _obscure = !_obscure),
                     ),
                   ),
-                  validator: (v) =>
-                      (v?.isEmpty ?? true) ? 'Şifre gerekli' : null,
+                  validator: (v) => (v?.isEmpty ?? true)
+                      ? t.validationPasswordRequired
+                      : null,
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 14),
@@ -136,26 +137,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Text('Giriş Yap'),
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(t.actionLogin),
                 ),
                 const SizedBox(height: 12),
                 Center(
                   child: TextButton(
                     onPressed: () => context.go('/forgot-password'),
                     child: Text(
-                      'Şifremi unuttum',
-                      style: AppTypography.bodyMd
-                          .copyWith(color: context.colors.primary),
+                      t.loginForgotPassword,
+                      style: AppTypography.bodyMd.copyWith(
+                        color: context.colors.primary,
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 32),
-                const _OrDivider(),
+                _OrDivider(label: t.registerOr),
                 const SizedBox(height: 24),
                 OutlinedButton(
                   onPressed: () => context.go('/register'),
-                  child: const Text('Hesap oluştur'),
+                  child: Text(t.actionRegister),
                 ),
               ],
             ),
@@ -222,18 +227,25 @@ class _ErrorBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.colors.danger.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: context.colors.danger.withValues(alpha: 0.25)),
+        border: Border.all(
+          color: context.colors.danger.withValues(alpha: 0.25),
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline_rounded,
-              size: 16, color: context.colors.danger),
+          Icon(
+            Icons.error_outline_rounded,
+            size: 16,
+            color: context.colors.danger,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
               style: AppTypography.bodyMd.copyWith(
-                  color: context.colors.danger, fontWeight: FontWeight.w500),
+                color: context.colors.danger,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -243,7 +255,8 @@ class _ErrorBanner extends StatelessWidget {
 }
 
 class _OrDivider extends StatelessWidget {
-  const _OrDivider();
+  final String label;
+  const _OrDivider({required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -252,9 +265,10 @@ class _OrDivider extends StatelessWidget {
         Expanded(child: Divider(color: context.colors.outlineSoft)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text('veya',
-              style:
-                  AppTypography.caption.copyWith(color: context.colors.textLo)),
+          child: Text(
+            label,
+            style: AppTypography.caption.copyWith(color: context.colors.textLo),
+          ),
         ),
         Expanded(child: Divider(color: context.colors.outlineSoft)),
       ],

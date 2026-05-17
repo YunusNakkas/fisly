@@ -1,21 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../expense_filters.dart';
 import '../expenses_provider.dart';
 import '../../categories/categories_provider.dart';
 import '../../subscriptions/subscriptions_provider.dart';
 import '../../budgets/budgets_provider.dart';
 import '../../../shared/category_icons.dart';
 import '../../../shared/category_avatar.dart';
+import '../../../shared/category_chip_picker.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/hero_card.dart';
 import '../../../shared/section_label.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
-
-const _months = [
-  'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-  'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
-];
+import '../../../l10n/localized_copy.dart';
 
 class ExpensesScreen extends ConsumerStatefulWidget {
   const ExpensesScreen({super.key});
@@ -25,13 +24,28 @@ class ExpensesScreen extends ConsumerStatefulWidget {
 }
 
 class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  ExpenseFilters _filters = const ExpenseFilters();
+
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(() {
+      final next = _searchController.text;
+      if (next == _searchQuery) return;
+      setState(() => _searchQuery = next);
+    });
     Future.microtask(() {
       ref.read(expensesProvider.notifier).load();
       ref.read(subscriptionsProvider.notifier).load();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -42,7 +56,16 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     final budgetProgressAsync = ref.watch(budgetsProgressProvider);
 
     final categories = categoriesAsync.valueOrNull ?? const <Category>[];
-    final categoriesById = <String, Category>{for (final c in categories) c.id: c};
+    final categoriesById = <String, Category>{
+      for (final c in categories) c.id: c,
+    };
+    final filteredExpenses = filterExpenses(
+      state.expenses,
+      categoriesById,
+      _searchQuery,
+      _filters,
+    );
+    final isFiltering = _searchQuery.trim().isNotEmpty || _filters.isActive;
 
     final viewedMonth = state.month;
     final monthSubs = subState.items.where((s) {
@@ -57,15 +80,16 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
 
     final totals = <String, double>{};
     double grandTotal = 0;
-    for (final e in state.expenses) {
+    for (final e in filteredExpenses) {
       final amount = double.tryParse(e['amount'].toString()) ?? 0;
       grandTotal += amount;
       final cid = e['category_id'] as String?;
       if (cid != null) totals[cid] = (totals[cid] ?? 0) + amount;
     }
 
-    final groups = _groupExpensesByDay(state.expenses);
-    final exceededBudgets = budgetProgressAsync.valueOrNull
+    final groups = _groupExpensesByDay(context, filteredExpenses);
+    final exceededBudgets =
+        budgetProgressAsync.valueOrNull
             ?.where((b) => b.percent >= 100)
             .toList() ??
         [];
@@ -81,11 +105,16 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('${_months[state.month.month - 1]} ${state.month.year}',
-                    style: AppTypography.titleLg),
+                Text(
+                  '${monthName(context, state.month.month)} ${state.month.year}',
+                  style: AppTypography.titleLg,
+                ),
                 const SizedBox(width: 2),
-                Icon(Icons.expand_more_rounded,
-                    size: 22, color: context.colors.textHi),
+                Icon(
+                  Icons.expand_more_rounded,
+                  size: 22,
+                  color: context.colors.textHi,
+                ),
               ],
             ),
           ),
@@ -99,8 +128,19 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
                 children: [
                   _HeroSummary(
+                    label: isFiltering
+                        ? copyForLocale(
+                            context,
+                            en: 'Filtered Total',
+                            tr: 'Filtre Sonucu',
+                          )
+                        : copyForLocale(
+                            context,
+                            en: 'Total Spending',
+                            tr: 'Toplam Harcama',
+                          ),
                     grandTotal: grandTotal,
-                    expenseCount: state.expenses.length,
+                    expenseCount: filteredExpenses.length,
                     categories: categories,
                     totals: totals,
                   ),
@@ -109,12 +149,43 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                     _BudgetWarningBanner(exceeded: exceededBudgets),
                   ],
                   const SizedBox(height: 18),
-                  if (state.expenses.isEmpty && monthSubs.isEmpty)
+                  if (state.expenses.isNotEmpty || isFiltering) ...[
+                    _ExpenseSearchField(
+                      controller: _searchController,
+                      resultCount: filteredExpenses.length,
+                      isFiltering: isFiltering,
+                      activeFilterCount: _filters.activeCount,
+                      onFilterTap: () => _showFilterSheet(context, categories),
+                      onClear: _clearFilters,
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+                  if (isFiltering && filteredExpenses.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      child: Center(
+                        child: Text(
+                          copyForLocale(
+                            context,
+                            en: 'No expenses match your search',
+                            tr: 'Aramaya uygun harcama bulunamadı',
+                          ),
+                          style: TextStyle(color: context.colors.textMid),
+                        ),
+                      ),
+                    )
+                  else if (state.expenses.isEmpty && monthSubs.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 48),
                       child: Center(
-                        child: Text('Bu ay için harcama yok',
-                            style: TextStyle(color: context.colors.textMid)),
+                        child: Text(
+                          copyForLocale(
+                            context,
+                            en: 'No expenses for this month',
+                            tr: 'Bu ay için harcama yok',
+                          ),
+                          style: TextStyle(color: context.colors.textMid),
+                        ),
                       ),
                     ),
                   for (final g in groups) ...[
@@ -128,8 +199,14 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                     ),
                     const SizedBox(height: 14),
                   ],
-                  if (monthSubs.isNotEmpty) ...[
-                    const SectionLabel('Abonelik ödemeleri'),
+                  if (!isFiltering && monthSubs.isNotEmpty) ...[
+                    SectionLabel(
+                      copyForLocale(
+                        context,
+                        en: 'Subscription payments',
+                        tr: 'Abonelik ödemeleri',
+                      ),
+                    ),
                     _SubscriptionsCard(
                       subs: monthSubs,
                       categoriesById: categoriesById,
@@ -154,10 +231,10 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       ..clearSnackBars()
       ..showSnackBar(
         SnackBar(
-          content: const Text('Harcama silindi'),
+          content: Text(AppLocalizations.of(context).expensesDeleted),
           duration: const Duration(seconds: 4),
           action: SnackBarAction(
-            label: 'Geri al',
+            label: copyForLocale(context, en: 'Undo', tr: 'Geri al'),
             onPressed: () => notifier.undoRemove(e),
           ),
         ),
@@ -176,14 +253,154 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       initialDatePickerMode: DatePickerMode.year,
-      helpText: 'Ay seç',
+      helpText: copyForLocale(context, en: 'Select month', tr: 'Ay seç'),
     );
     if (picked != null) {
       await ref.read(expensesProvider.notifier).setMonth(picked);
     }
   }
 
-  void _showExpenseSheet(BuildContext context, {Map<String, dynamic>? existing}) {
+  void _clearFilters() {
+    _searchController.clear();
+    setState(() => _filters = const ExpenseFilters());
+  }
+
+  void _showFilterSheet(BuildContext context, List<Category> categories) {
+    final minController = TextEditingController(
+      text: _filters.minAmount?.toStringAsFixed(0) ?? '',
+    );
+    final maxController = TextEditingController(
+      text: _filters.maxAmount?.toStringAsFixed(0) ?? '',
+    );
+    String? categoryId = _filters.categoryId;
+    bool receiptOnly = _filters.receiptOnly;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+        ),
+        child: StatefulBuilder(
+          builder: (ctx, setSheet) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        AppLocalizations.of(ctx).expensesFilterTitle,
+                        style: AppTypography.titleLg,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: copyForLocale(context, en: 'Close', tr: 'Kapat'),
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                CategoryChipPicker(
+                  categories: categories,
+                  selectedId: categoryId,
+                  allOptionLabel: copyForLocale(context, en: 'All', tr: 'Tümü'),
+                  onChanged: (v) => setSheet(() => categoryId = v),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: minController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: AppLocalizations.of(ctx).expensesFilterMin,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: maxController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: AppLocalizations.of(ctx).expensesFilterMax,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    AppLocalizations.of(ctx).expensesFilterReceiptOnly,
+                  ),
+                  value: receiptOnly,
+                  onChanged: (v) => setSheet(() => receiptOnly = v),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          setState(() => _filters = const ExpenseFilters());
+                          Navigator.pop(ctx);
+                        },
+                        child: Text(
+                          AppLocalizations.of(ctx).expensesFilterClear,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () {
+                          setState(() {
+                            _filters = ExpenseFilters(
+                              categoryId: categoryId,
+                              minAmount: parseExpenseAmount(minController.text),
+                              maxAmount: parseExpenseAmount(maxController.text),
+                              receiptOnly: receiptOnly,
+                            );
+                          });
+                          Navigator.pop(ctx);
+                        },
+                        child: Text(
+                          AppLocalizations.of(ctx).expensesFilterApply,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showExpenseSheet(
+    BuildContext context, {
+    Map<String, dynamic>? existing,
+  }) {
     final isEdit = existing != null;
     final amountController = TextEditingController(
       text: isEdit ? existing['amount'].toString() : '',
@@ -194,11 +411,17 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     final noteController = TextEditingController(
       text: isEdit ? (existing['note'] ?? '') : '',
     );
-    String? selectedCategoryId = isEdit ? existing['category_id'] as String? : null;
+    String? selectedCategoryId = isEdit
+        ? existing['category_id'] as String?
+        : null;
     DateTime selectedDate = isEdit
-        ? (DateTime.tryParse(existing['spent_at'] as String? ?? '')?.toLocal() ??
-            DateTime.now())
+        ? (DateTime.tryParse(
+                existing['spent_at'] as String? ?? '',
+              )?.toLocal() ??
+              DateTime.now())
         : DateTime.now();
+    final messenger = ScaffoldMessenger.of(context);
+    final danger = context.colors.danger;
     final formKey = GlobalKey<FormState>();
     bool saving = false;
 
@@ -211,7 +434,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       ),
       builder: (_) => Padding(
         padding: EdgeInsets.only(
-          left: 24, right: 24, top: 24,
+          left: 24,
+          right: 24,
+          top: 24,
           bottom: MediaQuery.of(context).viewInsets.bottom + 24,
         ),
         child: StatefulBuilder(
@@ -220,11 +445,13 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
 
             Future<void> save() async {
               if (!(formKey.currentState?.validate() ?? false)) return;
+              final loc = AppLocalizations.of(ctx);
               setSheetState(() => saving = true);
-              final messenger = ScaffoldMessenger.of(context);
               try {
                 if (isEdit) {
-                  await ref.read(expensesProvider.notifier).update(
+                  await ref
+                      .read(expensesProvider.notifier)
+                      .update(
                         existing['id'] as String,
                         amount: amountController.text.trim(),
                         categoryId: selectedCategoryId,
@@ -237,7 +464,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                         spentAt: selectedDate,
                       );
                 } else {
-                  await ref.read(expensesProvider.notifier).add(
+                  await ref
+                      .read(expensesProvider.notifier)
+                      .add(
                         amount: amountController.text.trim(),
                         categoryId: selectedCategoryId,
                         merchant: merchantController.text.trim().isEmpty
@@ -250,12 +479,16 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                 }
                 if (ctx.mounted) Navigator.pop(ctx);
                 messenger.showSnackBar(
-                  SnackBar(content: Text(isEdit ? 'Harcama güncellendi' : 'Harcama eklendi')),
+                  SnackBar(
+                    content: Text(
+                      isEdit ? loc.expensesUpdated : loc.expensesSaved,
+                    ),
+                  ),
                 );
               } catch (err) {
                 setSheetState(() => saving = false);
                 messenger.showSnackBar(
-                  SnackBar(content: Text('Kaydedilemedi: $err')),
+                  SnackBar(content: Text(loc.expensesSaveFailed)),
                 );
               }
             }
@@ -264,16 +497,19 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
               final ok = await showDialog<bool>(
                 context: ctx,
                 builder: (d) => AlertDialog(
-                  title: const Text('Harcamayı sil'),
-                  content: const Text('Bu harcama kalıcı olarak silinecek.'),
+                  title: Text(AppLocalizations.of(ctx).expensesDeleteTitle),
+                  content: Text(AppLocalizations.of(ctx).expensesDeleteBody),
                   actions: [
                     TextButton(
-                        onPressed: () => Navigator.pop(d, false),
-                        child: const Text('Vazgeç')),
+                      onPressed: () => Navigator.pop(d, false),
+                      child: Text(AppLocalizations.of(ctx).actionCancel),
+                    ),
                     TextButton(
                       onPressed: () => Navigator.pop(d, true),
-                      child: Text('Sil',
-                          style: TextStyle(color: ctx.colors.danger)),
+                      child: Text(
+                        AppLocalizations.of(ctx).actionDelete,
+                        style: TextStyle(color: danger),
+                      ),
                     ),
                   ],
                 ),
@@ -284,16 +520,20 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                 await ref
                     .read(expensesProvider.notifier)
                     .delete(existing!['id'] as String);
-                if (ctx.mounted) Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Harcama silindi')),
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(AppLocalizations.of(ctx).expensesDeleted),
+                  ),
                 );
               } catch (err) {
                 setSheetState(() => saving = false);
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
-                      content: Text('Silinemedi: $err'),
-                      backgroundColor: context.colors.danger),
+                    content: Text('Could not delete: $err'),
+                    backgroundColor: danger,
+                  ),
                 );
               }
             }
@@ -311,15 +551,20 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          isEdit ? 'Harcamayı Düzenle' : 'Harcama Ekle',
+                          isEdit
+                              ? AppLocalizations.of(ctx).expensesEditTitle
+                              : AppLocalizations.of(ctx).expensesAddTitle,
                           style: AppTypography.titleLg,
                         ),
                       ),
                       if (isEdit)
                         IconButton(
-                          icon: Icon(Icons.delete_outline_rounded,
-                              color: ctx.colors.danger, size: 22),
-                          tooltip: 'Sil',
+                          icon: Icon(
+                            Icons.delete_outline_rounded,
+                            color: ctx.colors.danger,
+                            size: 22,
+                          ),
+                          tooltip: AppLocalizations.of(ctx).actionDelete,
                           onPressed: saving ? null : confirmDelete,
                         ),
                     ],
@@ -327,34 +572,48 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: amountController,
-                    decoration: const InputDecoration(labelText: 'Tutar (TL)'),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(ctx).expensesAmount,
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     validator: (v) {
                       final s = v?.trim() ?? '';
-                      if (s.isEmpty) return 'Tutar gerekli';
+                      if (s.isEmpty) {
+                        return AppLocalizations.of(ctx).commonRequired;
+                      }
                       final d = double.tryParse(s.replaceAll(',', '.'));
-                      if (d == null) return 'Geçerli bir sayı gir';
-                      if (d <= 0) return '0\'dan büyük olmalı';
+                      if (d == null) {
+                        return AppLocalizations.of(ctx).validationAmountInvalid;
+                      }
+                      if (d <= 0) {
+                        return AppLocalizations.of(
+                          ctx,
+                        ).validationAmountPositive;
+                      }
                       return null;
                     },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   categoriesAsync.when(
                     loading: () => const LinearProgressIndicator(),
-                    error: (e, _) => Text('Kategoriler yüklenemedi: $e'),
-                    data: (cats) => DropdownButtonFormField<String>(
-                      initialValue: selectedCategoryId,
-                      decoration: const InputDecoration(labelText: 'Kategori'),
-                      items: cats
-                          .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
-                          .toList(),
-                      onChanged: (v) => setSheetState(() => selectedCategoryId = v),
+                    error: (e, _) => Text(
+                      '${copyForLocale(context, en: 'Could not load categories', tr: 'Kategoriler yüklenemedi')}: $e',
+                    ),
+                    data: (cats) => CategoryChipPicker(
+                      categories: cats,
+                      selectedId: selectedCategoryId,
+                      onChanged: (v) =>
+                          setSheetState(() => selectedCategoryId = v),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   OutlinedButton.icon(
                     icon: const Icon(Icons.calendar_today_outlined, size: 16),
-                    label: Text('Tarih: $dateFmt'),
+                    label: Text(
+                      '${AppLocalizations.of(ctx).expensesDateLabel}: $dateFmt',
+                    ),
                     onPressed: () async {
                       final d = await showDatePicker(
                         context: ctx,
@@ -370,22 +629,38 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: merchantController,
-                    decoration: const InputDecoration(labelText: 'Market / Mağaza'),
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(ctx).expensesMerchant,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: noteController,
-                    decoration: const InputDecoration(labelText: 'Not'),
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(ctx).expensesNote,
+                    ),
                   ),
                   const SizedBox(height: 20),
                   FilledButton(
                     onPressed: saving ? null : save,
                     child: saving
                         ? const SizedBox(
-                            width: 20, height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
-                        : Text(isEdit ? 'Güncelle' : 'Kaydet'),
+                        : Text(
+                            isEdit
+                                ? copyForLocale(
+                                    ctx,
+                                    en: 'Update',
+                                    tr: 'Güncelle',
+                                  )
+                                : AppLocalizations.of(ctx).actionSave,
+                          ),
                   ),
                 ],
               ),
@@ -399,12 +674,14 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
 
 // ─── Hero summary card ─────────────────────────────────────────────
 class _HeroSummary extends StatelessWidget {
+  final String label;
   final double grandTotal;
   final int expenseCount;
   final List<Category> categories;
   final Map<String, double> totals;
 
   const _HeroSummary({
+    required this.label,
     required this.grandTotal,
     required this.expenseCount,
     required this.categories,
@@ -422,12 +699,17 @@ class _HeroSummary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const HeroLabel('Toplam Harcama'),
+          HeroLabel(label),
           const SizedBox(height: 4),
-          Text(_fmtTRY(grandTotal), style: AppTypography.displayMd.copyWith(color: Colors.white)),
+          Text(
+            _fmtTRY(grandTotal),
+            style: AppTypography.displayMd.copyWith(color: Colors.white),
+          ),
           const SizedBox(height: 6),
           Text(
-            '$expenseCount harcama · ${sorted.length} kategori',
+            AppLocalizations.of(
+              context,
+            ).dashboardExpenseCount(expenseCount, sorted.length),
             style: const TextStyle(
               fontSize: 13,
               color: Color(0xA6FFFFFF),
@@ -446,8 +728,7 @@ class _HeroSummary extends StatelessWidget {
                   children: [
                     for (final c in sorted)
                       Expanded(
-                        flex:
-                            ((totals[c.id] ?? 0) / grandTotal * 1000).round(),
+                        flex: ((totals[c.id] ?? 0) / grandTotal * 1000).round(),
                         child: Container(color: colorFromHex(c.color)),
                       ),
                   ],
@@ -472,18 +753,86 @@ class _HeroSummary extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 5),
-                      Text(c.name,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Color(0xCCFFFFFF),
-                            fontWeight: FontWeight.w500,
-                          )),
+                      Text(
+                        localizedCategoryName(context, c.name),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xCCFFFFFF),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ],
                   ),
               ],
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+// ─── Expense search ────────────────────────────────────────────────
+class _ExpenseSearchField extends StatelessWidget {
+  final TextEditingController controller;
+  final int resultCount;
+  final bool isFiltering;
+  final int activeFilterCount;
+  final VoidCallback onFilterTap;
+  final VoidCallback onClear;
+
+  const _ExpenseSearchField({
+    required this.controller,
+    required this.resultCount,
+    required this.isFiltering,
+    required this.activeFilterCount,
+    required this.onFilterTap,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: copyForLocale(
+          context,
+          en: 'Search merchant, category, note or amount',
+          tr: 'Market, kategori, not veya tutar ara',
+        ),
+        prefixIcon: const Icon(Icons.search_rounded),
+        suffixIcon: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: copyForLocale(context, en: 'Filters', tr: 'Filtreler'),
+              icon: Badge.count(
+                count: activeFilterCount,
+                isLabelVisible: activeFilterCount > 0,
+                child: const Icon(Icons.tune_rounded),
+              ),
+              onPressed: onFilterTap,
+            ),
+            if (isFiltering)
+              IconButton(
+                tooltip: copyForLocale(
+                  context,
+                  en: 'Clear filters',
+                  tr: 'Filtreleri temizle',
+                ),
+                icon: const Icon(Icons.close_rounded),
+                onPressed: onClear,
+              ),
+          ],
+        ),
+        helperText: isFiltering
+            ? copyForLocale(
+                context,
+                en: '$resultCount results',
+                tr: '$resultCount sonuç',
+              )
+            : null,
       ),
     );
   }
@@ -497,7 +846,10 @@ class _DayGroup {
   _DayGroup({required this.label, required this.total, required this.items});
 }
 
-List<_DayGroup> _groupExpensesByDay(List<Map<String, dynamic>> expenses) {
+List<_DayGroup> _groupExpensesByDay(
+  BuildContext context,
+  List<Map<String, dynamic>> expenses,
+) {
   final byDate = <String, List<Map<String, dynamic>>>{};
   final today = DateTime.now();
   final todayKey = _dateKey(today);
@@ -505,7 +857,9 @@ List<_DayGroup> _groupExpensesByDay(List<Map<String, dynamic>> expenses) {
 
   for (final e in expenses) {
     final iso = e['spent_at'] as String?;
-    final key = iso != null ? _dateKey(DateTime.tryParse(iso)?.toLocal() ?? today) : '0000-00-00';
+    final key = iso != null
+        ? _dateKey(DateTime.tryParse(iso)?.toLocal() ?? today)
+        : '0000-00-00';
     byDate.putIfAbsent(key, () => []).add(e);
   }
 
@@ -519,11 +873,13 @@ List<_DayGroup> _groupExpensesByDay(List<Map<String, dynamic>> expenses) {
     );
     String label;
     if (k == todayKey) {
-      label = 'Bugün · ${_dayLabel(k)}';
+      label =
+          '${copyForLocale(context, en: 'Today', tr: 'Bugün')} · ${_dayLabel(context, k)}';
     } else if (k == yesterdayKey) {
-      label = 'Dün · ${_dayLabel(k)}';
+      label =
+          '${copyForLocale(context, en: 'Yesterday', tr: 'Dün')} · ${_dayLabel(context, k)}';
     } else {
-      label = _dayLabel(k);
+      label = _dayLabel(context, k);
     }
     return _DayGroup(label: label, total: total, items: items);
   }).toList();
@@ -532,10 +888,10 @@ List<_DayGroup> _groupExpensesByDay(List<Map<String, dynamic>> expenses) {
 String _dateKey(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-String _dayLabel(String key) {
+String _dayLabel(BuildContext context, String key) {
   try {
     final d = DateTime.parse(key);
-    return '${d.day.toString().padLeft(2, '0')} ${_months[d.month - 1]}';
+    return '${d.day.toString().padLeft(2, '0')} ${monthName(context, d.month)}';
   } catch (_) {
     return key;
   }
@@ -603,8 +959,7 @@ class _ExpenseGroupCard extends StatelessWidget {
         child: Column(
           children: [
             for (int i = 0; i < expenses.length; i++) ...[
-              if (i > 0)
-                Divider(height: 1, color: context.colors.outlineSoft),
+              if (i > 0) Divider(height: 1, color: context.colors.outlineSoft),
               _ExpenseRow(
                 expense: expenses[i],
                 category: categoriesById[expenses[i]['category_id']],
@@ -667,14 +1022,20 @@ class _ExpenseRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      (expense['merchant'] as String?) ?? 'Bilinmiyor',
-                      style: AppTypography.bodyLg
-                          .copyWith(fontWeight: FontWeight.w600),
+                      (expense['merchant'] as String?) ??
+                          copyForLocale(
+                            context,
+                            en: 'Unknown',
+                            tr: 'Bilinmiyor',
+                          ),
+                      style: AppTypography.bodyLg.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      '${category?.name ?? '—'} · $time',
+                      '${localizedCategoryName(context, category?.name, fallbackEn: '—', fallbackTr: '—')} · $time',
                       style: AppTypography.caption,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -696,10 +1057,7 @@ class _SubscriptionsCard extends StatelessWidget {
   final List<Subscription> subs;
   final Map<String, Category> categoriesById;
 
-  const _SubscriptionsCard({
-    required this.subs,
-    required this.categoriesById,
-  });
+  const _SubscriptionsCard({required this.subs, required this.categoriesById});
 
   @override
   Widget build(BuildContext context) {
@@ -751,21 +1109,27 @@ class _SubRow extends StatelessWidget {
                     color: context.colors.primary.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(Icons.repeat,
-                      color: context.colors.primary, size: 20),
+                  child: Icon(
+                    Icons.repeat,
+                    color: context.colors.primary,
+                    size: 20,
+                  ),
                 ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(sub.name,
-                    style: AppTypography.bodyLg
-                        .copyWith(fontWeight: FontWeight.w600),
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  sub.name,
+                  style: AppTypography.bodyLg.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 1),
                 Text(
-                  '${category?.name ?? 'Abonelik'} · ${sub.periodLabel}',
+                  '${localizedCategoryName(context, category?.name, fallbackEn: 'Subscription', fallbackTr: 'Abonelik')} · ${periodLabel(context, sub.period)}',
                   style: AppTypography.caption,
                 ),
               ],
@@ -786,12 +1150,25 @@ class _BudgetWarningBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = exceeded.length == 1
-        ? '"${exceeded.first.categoryName ?? 'Genel'}" bütçen aşıldı'
-        : '${exceeded.length} bütçen aşıldı';
+        ? copyForLocale(
+            context,
+            en: '"${localizedCategoryName(context, exceeded.first.categoryName, fallbackEn: 'General', fallbackTr: 'Genel')}" budget exceeded',
+            tr: '"${localizedCategoryName(context, exceeded.first.categoryName, fallbackEn: 'Genel', fallbackTr: 'Genel')}" bütçen aşıldı',
+          )
+        : copyForLocale(
+            context,
+            en: '${exceeded.length} budgets exceeded',
+            tr: '${exceeded.length} bütçen aşıldı',
+          );
 
     final overList = exceeded
-        .map((b) =>
-            '${b.categoryName ?? 'Genel'}: ${_fmtTRY(b.spent - b.amount)} fazla')
+        .map(
+          (b) => copyForLocale(
+            context,
+            en: '${localizedCategoryName(context, b.categoryName, fallbackEn: 'General', fallbackTr: 'Genel')}: ${_fmtTRY(b.spent - b.amount)} over',
+            tr: '${localizedCategoryName(context, b.categoryName, fallbackEn: 'Genel', fallbackTr: 'Genel')}: ${_fmtTRY(b.spent - b.amount)} fazla',
+          ),
+        )
         .join(' · ');
 
     return Container(
@@ -799,15 +1176,20 @@ class _BudgetWarningBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.colors.danger.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppRadius.md + 2),
-        border: Border.all(color: context.colors.danger.withValues(alpha: 0.25)),
+        border: Border.all(
+          color: context.colors.danger.withValues(alpha: 0.25),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 1),
-            child: Icon(Icons.warning_amber_rounded,
-                size: 18, color: context.colors.danger),
+            child: Icon(
+              Icons.warning_amber_rounded,
+              size: 18,
+              color: context.colors.danger,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -817,13 +1199,18 @@ class _BudgetWarningBanner extends StatelessWidget {
                 Text(
                   label,
                   style: AppTypography.bodyMd.copyWith(
-                      color: context.colors.danger, fontWeight: FontWeight.w600),
+                    color: context.colors.danger,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 if (exceeded.length > 1) ...[
                   const SizedBox(height: 2),
-                  Text(overList,
-                      style: AppTypography.caption
-                          .copyWith(color: context.colors.danger.withValues(alpha: 0.8))),
+                  Text(
+                    overList,
+                    style: AppTypography.caption.copyWith(
+                      color: context.colors.danger.withValues(alpha: 0.8),
+                    ),
+                  ),
                 ],
               ],
             ),

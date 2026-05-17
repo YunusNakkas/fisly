@@ -5,6 +5,7 @@ import '../../../shared/section_label.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../l10n/app_localizations.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -12,25 +13,24 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(profileProvider);
+    final t = AppLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: context.colors.bg,
-      appBar: AppBar(title: Text('Profil', style: AppTypography.titleLg)),
+      appBar: AppBar(title: Text(t.profileTitle, style: AppTypography.titleLg)),
       body: profileAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline,
-                  size: 48, color: context.colors.danger),
+              Icon(Icons.error_outline, size: 48, color: context.colors.danger),
               const SizedBox(height: 12),
-              Text('Profil yüklenemedi',
-                  style: AppTypography.bodyLg),
+              Text(t.commonError, style: AppTypography.bodyLg),
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => ref.invalidate(profileProvider),
-                child: const Text('Tekrar dene'),
+                child: Text(t.actionRetry),
               ),
             ],
           ),
@@ -38,8 +38,8 @@ class ProfileScreen extends ConsumerWidget {
         data: (p) {
           final displayName =
               (p.fullName != null && p.fullName!.trim().isNotEmpty)
-                  ? p.fullName!
-                  : p.email.split('@').first;
+              ? p.fullName!
+              : p.email.split('@').first;
           final initial = displayName.isNotEmpty
               ? displayName.substring(0, 1).toUpperCase()
               : '?';
@@ -86,22 +86,15 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              const SectionLabel('Kişisel bilgiler'),
+              SectionLabel(t.profileSubtitle),
               _InfoCard(
                 rows: [
                   _InfoRow(
-                    label: 'Ad Soyad',
+                    label: t.profileFullNameLabel,
                     value: p.fullName ?? '—',
                     onEdit: () => _showEditNameSheet(context, ref, p.fullName),
                   ),
-                  _InfoRow(
-                    label: 'E-posta',
-                    value: p.email,
-                  ),
-                  _InfoRow(
-                    label: 'Plan',
-                    value: p.plan == 'premium' ? 'Premium' : 'Ücretsiz',
-                  ),
+                  _InfoRow(label: t.profileEmailLabel, value: p.email),
                 ],
               ),
               const SizedBox(height: 24),
@@ -110,7 +103,7 @@ class ProfileScreen extends ConsumerWidget {
                 child: OutlinedButton.icon(
                   onPressed: () => _showChangePasswordSheet(context, ref),
                   icon: const Icon(Icons.lock_outline),
-                  label: const Text('Şifre değiştir'),
+                  label: Text(t.settingsPasswordChange),
                 ),
               ),
             ],
@@ -121,7 +114,11 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   void _showEditNameSheet(
-      BuildContext context, WidgetRef ref, String? current) {
+    BuildContext context,
+    WidgetRef ref,
+    String? current,
+  ) {
+    final t = AppLocalizations.of(context);
     final controller = TextEditingController(text: current ?? '');
     final formKey = GlobalKey<FormState>();
     bool saving = false;
@@ -131,8 +128,7 @@ class ProfileScreen extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: context.colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
@@ -153,17 +149,18 @@ class ProfileScreen extends ConsumerWidget {
                 ref.invalidate(profileProvider);
                 if (ctx.mounted) Navigator.pop(ctx);
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Ad soyad güncellendi')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(t.profileSaved)));
                 }
               } catch (e) {
                 if (ctx.mounted) {
                   setState(() => saving = false);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                        content: Text('Kaydedilemedi: $e'),
-                        backgroundColor: context.colors.danger),
+                      content: Text(t.profileSaveFailed),
+                      backgroundColor: context.colors.danger,
+                    ),
                   );
                 }
               }
@@ -175,13 +172,16 @@ class ProfileScreen extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Ad Soyadı Düzenle', style: AppTypography.titleLg),
+                  Text(t.profileFullNameLabel, style: AppTypography.titleLg),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: controller,
-                    decoration: const InputDecoration(labelText: 'Ad Soyad'),
-                    validator: (v) =>
-                        (v?.trim().isEmpty ?? true) ? 'Ad soyad boş olamaz' : null,
+                    decoration: InputDecoration(
+                      labelText: t.profileFullNameLabel,
+                    ),
+                    validator: (v) => (v?.trim().isEmpty ?? true)
+                        ? t.validationNameRequired
+                        : null,
                   ),
                   const SizedBox(height: 20),
                   FilledButton(
@@ -191,8 +191,11 @@ class ProfileScreen extends ConsumerWidget {
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Text('Kaydet'),
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(t.profileSaveAction),
                   ),
                 ],
               ),
@@ -204,6 +207,7 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   void _showChangePasswordSheet(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context);
     final currentCtrl = TextEditingController();
     final newCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
@@ -217,8 +221,7 @@ class ProfileScreen extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: context.colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
@@ -233,26 +236,26 @@ class ProfileScreen extends ConsumerWidget {
               if (!(formKey.currentState?.validate() ?? false)) return;
               setState(() => saving = true);
               try {
-                await ref.read(profileUpdaterProvider).changePassword(
+                await ref
+                    .read(profileUpdaterProvider)
+                    .changePassword(
                       currentPassword: currentCtrl.text,
                       newPassword: newCtrl.text,
                     );
                 if (ctx.mounted) Navigator.pop(ctx);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Şifre değiştirildi')),
+                    SnackBar(content: Text(t.passwordChangeSuccess)),
                   );
                 }
               } catch (e) {
                 if (ctx.mounted) {
                   setState(() => saving = false);
-                  final msg = e.toString().contains('Mevcut şifre hatalı')
-                      ? 'Mevcut şifre hatalı'
-                      : 'Kaydedilemedi: $e';
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                        content: Text(msg),
-                        backgroundColor: context.colors.danger),
+                      content: Text(t.passwordChangeFailed),
+                      backgroundColor: context.colors.danger,
+                    ),
                   );
                 }
               }
@@ -264,40 +267,45 @@ class ProfileScreen extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Şifre Değiştir', style: AppTypography.titleLg),
+                  Text(t.passwordChangeTitle, style: AppTypography.titleLg),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: currentCtrl,
                     obscureText: obscureCurrent,
                     decoration: InputDecoration(
-                      labelText: 'Mevcut şifre',
+                      labelText: t.passwordChangeCurrent,
                       suffixIcon: IconButton(
-                        icon: Icon(obscureCurrent
-                            ? Icons.visibility
-                            : Icons.visibility_off),
-                        onPressed: () => setState(
-                            () => obscureCurrent = !obscureCurrent),
+                        icon: Icon(
+                          obscureCurrent
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                        ),
+                        onPressed: () =>
+                            setState(() => obscureCurrent = !obscureCurrent),
                       ),
                     ),
-                    validator: (v) =>
-                        (v?.isEmpty ?? true) ? 'Mevcut şifre gerekli' : null,
+                    validator: (v) => (v?.isEmpty ?? true)
+                        ? t.validationPasswordRequired
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: newCtrl,
                     obscureText: obscureNew,
                     decoration: InputDecoration(
-                      labelText: 'Yeni şifre',
+                      labelText: t.passwordChangeNew,
                       suffixIcon: IconButton(
-                        icon: Icon(obscureNew
-                            ? Icons.visibility
-                            : Icons.visibility_off),
+                        icon: Icon(
+                          obscureNew ? Icons.visibility : Icons.visibility_off,
+                        ),
                         onPressed: () =>
                             setState(() => obscureNew = !obscureNew),
                       ),
                     ),
                     validator: (v) {
-                      if (v == null || v.length < 6) return 'En az 6 karakter';
+                      if (v == null || v.length < 6) {
+                        return t.validationPasswordMin6;
+                      }
                       return null;
                     },
                   ),
@@ -305,10 +313,11 @@ class ProfileScreen extends ConsumerWidget {
                   TextFormField(
                     controller: confirmCtrl,
                     obscureText: true,
-                    decoration: const InputDecoration(
-                        labelText: 'Yeni şifre (tekrar)'),
+                    decoration: InputDecoration(
+                      labelText: t.passwordChangeConfirm,
+                    ),
                     validator: (v) =>
-                        v != newCtrl.text ? 'Şifreler eşleşmiyor' : null,
+                        v != newCtrl.text ? t.passwordChangeMismatch : null,
                   ),
                   const SizedBox(height: 20),
                   FilledButton(
@@ -318,8 +327,11 @@ class ProfileScreen extends ConsumerWidget {
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Text('Değiştir'),
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(t.passwordChangeSubmit),
                   ),
                 ],
               ),
@@ -347,8 +359,7 @@ class _InfoCard extends StatelessWidget {
         child: Column(
           children: [
             for (int i = 0; i < rows.length; i++) ...[
-              if (i > 0)
-                Divider(height: 1, color: context.colors.outlineSoft),
+              if (i > 0) Divider(height: 1, color: context.colors.outlineSoft),
               rows[i],
             ],
           ],
@@ -378,15 +389,17 @@ class _InfoRow extends StatelessWidget {
                 children: [
                   Text(label, style: AppTypography.caption),
                   const SizedBox(height: 2),
-                  Text(value,
-                      style: AppTypography.bodyLg
-                          .copyWith(fontWeight: FontWeight.w600)),
+                  Text(
+                    value,
+                    style: AppTypography.bodyLg.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
             ),
             if (onEdit != null)
-              Icon(Icons.edit_outlined,
-                  size: 18, color: context.colors.textLo),
+              Icon(Icons.edit_outlined, size: 18, color: context.colors.textLo),
           ],
         ),
       ),

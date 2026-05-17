@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../reports_provider.dart';
 import '../../budgets/budgets_provider.dart';
 import '../../categories/categories_provider.dart';
+import '../../../core/export/csv_export_service.dart';
 import '../../../shared/category_icons.dart';
 import '../../../shared/category_avatar.dart';
 import '../../../shared/hero_card.dart';
@@ -12,11 +13,8 @@ import '../../../shared/section_label.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
-
-const _months = [
-  'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-  'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
-];
+import '../../../l10n/app_localizations.dart';
+import '../../../l10n/localized_copy.dart';
 
 class ReportsScreen extends ConsumerWidget {
   const ReportsScreen({super.key});
@@ -28,10 +26,18 @@ class ReportsScreen extends ConsumerWidget {
     final weekStart = ref.watch(reportWeekProvider);
     final summaryAsync = ref.watch(reportSummaryProvider);
 
+    final t = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: context.colors.bg,
       appBar: AppBar(
-        title: Text('Raporlar', style: AppTypography.titleLg),
+        title: Text(t.reportsTitle, style: AppTypography.titleLg),
+        actions: [
+          IconButton(
+            tooltip: t.reportsExportCsv,
+            icon: const Icon(Icons.file_download_outlined),
+            onPressed: () => _exportCsv(context, ref, month),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -57,11 +63,11 @@ class ReportsScreen extends ConsumerWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Yüklenemedi', style: AppTypography.bodyLg),
+                    Text(t.commonError, style: AppTypography.bodyLg),
                     const SizedBox(height: 8),
                     TextButton(
                       onPressed: () => ref.invalidate(reportSummaryProvider),
-                      child: const Text('Tekrar dene'),
+                      child: Text(t.actionRetry),
                     ),
                   ],
                 ),
@@ -69,7 +75,10 @@ class ReportsScreen extends ConsumerWidget {
               data: (summary) => RefreshIndicator(
                 onRefresh: () async {
                   ref.invalidate(budgetsProgressProvider);
-                  await ref.refresh(reportSummaryProvider.future);
+                  await Future.wait([
+                    ref.refresh(reportTrendsProvider.future),
+                    ref.refresh(reportSummaryProvider.future),
+                  ]);
                 },
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 120),
@@ -90,18 +99,28 @@ class ReportsScreen extends ConsumerWidget {
                         child: Center(
                           child: Text(
                             period == 'weekly'
-                                ? 'Bu hafta için harcama verisi yok'
-                                : 'Bu ay için harcama verisi yok',
-                            style: AppTypography.bodyMd
-                                .copyWith(color: context.colors.textMid),
+                                ? copyForLocale(
+                                    context,
+                                    en: 'No spending data for this week',
+                                    tr: 'Bu hafta için harcama verisi yok',
+                                  )
+                                : copyForLocale(
+                                    context,
+                                    en: 'No spending data for this month',
+                                    tr: 'Bu ay için harcama verisi yok',
+                                  ),
+                            style: AppTypography.bodyMd.copyWith(
+                              color: context.colors.textMid,
+                            ),
                           ),
                         ),
                       )
                     else ...[
-                      const SectionLabel('Kategori Dağılımı'),
+                      SectionLabel(t.reportsCategoryBreakdown),
                       _DonutCard(
-                          breakdown: summary.breakdown,
-                          total: summary.total),
+                        breakdown: summary.breakdown,
+                        total: summary.total,
+                      ),
                       const SizedBox(height: 18),
                       _BreakdownCard(
                         breakdown: summary.breakdown,
@@ -119,18 +138,48 @@ class ReportsScreen extends ConsumerWidget {
   }
 
   Future<void> _pickMonth(
-      BuildContext context, WidgetRef ref, DateTime current) async {
+    BuildContext context,
+    WidgetRef ref,
+    DateTime current,
+  ) async {
     final picked = await showDatePicker(
       context: context,
       initialDate: current,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       initialDatePickerMode: DatePickerMode.year,
-      helpText: 'Ay seç',
+      helpText: copyForLocale(context, en: 'Select month', tr: 'Ay seç'),
     );
     if (picked != null) {
-      ref.read(reportMonthProvider.notifier).state =
-          DateTime(picked.year, picked.month);
+      ref.read(reportMonthProvider.notifier).state = DateTime(
+        picked.year,
+        picked.month,
+      );
+    }
+  }
+
+  Future<void> _exportCsv(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime month,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final t = AppLocalizations.of(context);
+    final isTurkish = isTurkishLocale(context);
+    try {
+      final csv = await exportReportCsv(ref, month);
+      if (csv.trim().isEmpty) {
+        messenger.showSnackBar(SnackBar(content: Text(t.reportsNoData)));
+        return;
+      }
+      await const CsvExportService().shareReportCsv(
+        csv: csv,
+        month: month,
+        isTurkish: isTurkish,
+      );
+      messenger.showSnackBar(SnackBar(content: Text(t.reportsExportSuccess)));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(t.reportsExportFailed)));
     }
   }
 }
@@ -158,10 +207,14 @@ class _PeriodBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final canGoNextMonth = DateTime(month.year, month.month)
-        .isBefore(DateTime(now.year, now.month));
+    final canGoNextMonth = DateTime(
+      month.year,
+      month.month,
+    ).isBefore(DateTime(now.year, now.month));
     final weekEnd = weekStart.add(const Duration(days: 7));
-    final canGoNextWeek = weekEnd.isBefore(DateTime(now.year, now.month, now.day));
+    final canGoNextWeek = weekEnd.isBefore(
+      DateTime(now.year, now.month, now.day),
+    );
 
     return Row(
       children: [
@@ -176,12 +229,12 @@ class _PeriodBar extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               _PeriodChip(
-                label: 'Aylık',
+                label: AppLocalizations.of(context).budgetsPeriodMonthly,
                 selected: period == 'monthly',
                 onTap: () => onPeriodChanged('monthly'),
               ),
               _PeriodChip(
-                label: 'Haftalık',
+                label: AppLocalizations.of(context).budgetsPeriodWeekly,
                 selected: period == 'weekly',
                 onTap: () => onPeriodChanged('weekly'),
               ),
@@ -194,8 +247,8 @@ class _PeriodBar extends StatelessWidget {
           icon: Icons.chevron_left,
           onTap: period == 'monthly'
               ? () => onMonthChanged(DateTime(month.year, month.month - 1))
-              : () => onWeekChanged(
-                    weekStart.subtract(const Duration(days: 7))),
+              : () =>
+                    onWeekChanged(weekStart.subtract(const Duration(days: 7))),
         ),
         GestureDetector(
           onTap: period == 'monthly' ? onPickMonth : null,
@@ -203,10 +256,9 @@ class _PeriodBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 2),
             child: Text(
               period == 'monthly'
-                  ? '${_months[month.month - 1]} ${month.year}'
-                  : _weekLabel(weekStart),
-              style: AppTypography.bodyMd
-                  .copyWith(fontWeight: FontWeight.w600),
+                  ? '${monthName(context, month.month)} ${month.year}'
+                  : _weekLabel(context, weekStart),
+              style: AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
         ),
@@ -214,27 +266,32 @@ class _PeriodBar extends StatelessWidget {
           icon: Icons.chevron_right,
           onTap: (period == 'monthly' ? canGoNextMonth : canGoNextWeek)
               ? (period == 'monthly'
-                  ? () => onMonthChanged(DateTime(month.year, month.month + 1))
-                  : () => onWeekChanged(
-                        weekStart.add(const Duration(days: 7))))
+                    ? () =>
+                          onMonthChanged(DateTime(month.year, month.month + 1))
+                    : () =>
+                          onWeekChanged(weekStart.add(const Duration(days: 7))))
               : null,
         ),
       ],
     );
   }
 
-  String _weekLabel(DateTime monday) {
+  String _weekLabel(BuildContext context, DateTime monday) {
     final sunday = monday.add(const Duration(days: 6));
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final thisMonday = today.subtract(Duration(days: today.weekday - 1));
     final lastMonday = thisMonday.subtract(const Duration(days: 7));
 
-    if (monday == thisMonday) return 'Bu Hafta';
-    if (monday == lastMonday) return 'Geçen Hafta';
+    if (monday == thisMonday) {
+      return copyForLocale(context, en: 'This Week', tr: 'Bu Hafta');
+    }
+    if (monday == lastMonday) {
+      return copyForLocale(context, en: 'Last Week', tr: 'Geçen Hafta');
+    }
 
-    final sm = _months[monday.month - 1].substring(0, 3);
-    final em = _months[sunday.month - 1].substring(0, 3);
+    final sm = shortMonthName(context, monday.month);
+    final em = shortMonthName(context, sunday.month);
     return '${monday.day} $sm – ${sunday.day} $em';
   }
 }
@@ -310,18 +367,32 @@ class _HeroSummary extends StatelessWidget {
     required this.weekStart,
   });
 
-  String _heroLabel() {
+  String _heroLabel(BuildContext context) {
     if (period == 'weekly') {
       final sunday = weekStart.add(const Duration(days: 6));
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final thisMonday = today.subtract(Duration(days: today.weekday - 1));
-      if (weekStart == thisMonday) return 'Bu Hafta Toplam';
-      final sm = _months[weekStart.month - 1].substring(0, 3);
-      final em = _months[sunday.month - 1].substring(0, 3);
-      return '${weekStart.day} $sm – ${sunday.day} $em Toplam';
+      if (weekStart == thisMonday) {
+        return copyForLocale(
+          context,
+          en: 'This Week Total',
+          tr: 'Bu Hafta Toplam',
+        );
+      }
+      final sm = shortMonthName(context, weekStart.month);
+      final em = shortMonthName(context, sunday.month);
+      return copyForLocale(
+        context,
+        en: '${weekStart.day} $sm – ${sunday.day} $em Total',
+        tr: '${weekStart.day} $sm – ${sunday.day} $em Toplam',
+      );
     }
-    return '${_months[month.month - 1]} ${month.year} Toplam';
+    return copyForLocale(
+      context,
+      en: '${monthName(context, month.month)} ${month.year} Total',
+      tr: '${monthName(context, month.month)} ${month.year} Toplam',
+    );
   }
 
   @override
@@ -332,18 +403,25 @@ class _HeroSummary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          HeroLabel(_heroLabel()),
+          HeroLabel(_heroLabel(context)),
           const SizedBox(height: 4),
-          Text(_fmtTRY(summary.total),
-              style: AppTypography.displayLg.copyWith(color: Colors.white)),
+          Text(
+            _fmtTRY(summary.total),
+            style: AppTypography.displayLg.copyWith(color: Colors.white),
+          ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 16,
             runSpacing: 4,
             children: [
-              _HeroStat(value: '${summary.expenseCount}', label: 'harcama'),
               _HeroStat(
-                  value: '${summary.breakdown.length}', label: 'kategori'),
+                value: '${summary.expenseCount}',
+                label: copyForLocale(context, en: 'expenses', tr: 'harcama'),
+              ),
+              _HeroStat(
+                value: '${summary.breakdown.length}',
+                label: copyForLocale(context, en: 'categories', tr: 'kategori'),
+              ),
             ],
           ),
         ],
@@ -417,23 +495,31 @@ class _BudgetsSection extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SectionLabel(
-                'Bütçeler',
+                AppLocalizations.of(context).budgetsTitle,
                 trailing: InkWell(
                   onTap: () => context.push('/settings/budgets'),
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.tune,
-                            size: 14, color: context.colors.primary),
+                        Icon(
+                          Icons.tune,
+                          size: 14,
+                          color: context.colors.primary,
+                        ),
                         const SizedBox(width: 4),
-                        Text('Yönet',
-                            style: AppTypography.labelXs.copyWith(
-                                color: context.colors.primary,
-                                fontWeight: FontWeight.w600)),
+                        Text(
+                          copyForLocale(context, en: 'Manage', tr: 'Yönet'),
+                          style: AppTypography.labelXs.copyWith(
+                            color: context.colors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -479,20 +565,32 @@ class _EmptyBudgetsCard extends StatelessWidget {
                   color: context.colors.primary.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
-                child: Icon(Icons.account_balance_wallet,
-                    color: context.colors.primary, size: 20),
+                child: Icon(
+                  Icons.account_balance_wallet,
+                  color: context.colors.primary,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Henüz bütçe yok',
-                        style: AppTypography.bodyLg
-                            .copyWith(fontWeight: FontWeight.w600)),
+                    Text(
+                      AppLocalizations.of(context).budgetsEmptyState,
+                      style: AppTypography.bodyLg.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    Text('Aylık limit eklemek için dokun',
-                        style: AppTypography.caption),
+                    Text(
+                      copyForLocale(
+                        context,
+                        en: 'Tap to add a monthly limit',
+                        tr: 'Aylık limit eklemek için dokun',
+                      ),
+                      style: AppTypography.caption,
+                    ),
                   ],
                 ),
               ),
@@ -514,7 +612,9 @@ class _BudgetRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final pct = (item.percent / 100).clamp(0.0, 1.0);
     final isGeneral = item.categoryId == null;
-    final label = isGeneral ? 'Genel' : (category?.name ?? 'Kategori');
+    final label = isGeneral
+        ? AppLocalizations.of(context).budgetsGeneral
+        : localizedCategoryName(context, category?.name);
 
     final Color statusColor;
     if (item.percent >= 100) {
@@ -534,8 +634,11 @@ class _BudgetRow extends StatelessWidget {
           color: context.colors.primary.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(AppRadius.sm + 2),
         ),
-        child: Icon(Icons.account_balance_wallet,
-            color: context.colors.primary, size: 18),
+        child: Icon(
+          Icons.account_balance_wallet,
+          color: context.colors.primary,
+          size: 18,
+        ),
       );
     } else {
       leading = CategoryAvatar(
@@ -563,35 +666,51 @@ class _BudgetRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label,
-                        style: AppTypography.bodyMd
-                            .copyWith(fontWeight: FontWeight.w600)),
+                    Text(
+                      label,
+                      style: AppTypography.bodyMd.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 1),
-                    Text('${_fmtTRY(item.spent)} / ${_fmtTRY(item.amount)}',
-                        style: AppTypography.caption
-                            .copyWith(fontSize: 11)),
+                    Text(
+                      '${_fmtTRY(item.spent)} / ${_fmtTRY(item.amount)}',
+                      style: AppTypography.caption.copyWith(fontSize: 11),
+                    ),
                   ],
                 ),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('${item.percent.toStringAsFixed(0)}%',
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: statusColor)),
+                  Text(
+                    '${item.percent.toStringAsFixed(0)}%',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor,
+                    ),
+                  ),
                   const SizedBox(height: 1),
                   Text(
                     item.remaining >= 0
-                        ? 'Kalan ${_fmtTRY(item.remaining)}'
-                        : 'Aşım ${_fmtTRY(-item.remaining)}',
+                        ? copyForLocale(
+                            context,
+                            en: 'Remaining ${_fmtTRY(item.remaining)}',
+                            tr: 'Kalan ${_fmtTRY(item.remaining)}',
+                          )
+                        : copyForLocale(
+                            context,
+                            en: 'Over ${_fmtTRY(-item.remaining)}',
+                            tr: 'Aşım ${_fmtTRY(-item.remaining)}',
+                          ),
                     style: AppTypography.labelXs.copyWith(
-                        fontSize: 10,
-                        color: item.remaining >= 0
-                            ? context.colors.textLo
-                            : context.colors.danger,
-                        fontWeight: FontWeight.w500),
+                      fontSize: 10,
+                      color: item.remaining >= 0
+                          ? context.colors.textLo
+                          : context.colors.danger,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
@@ -633,10 +752,14 @@ class _TrendCardState extends ConsumerState<_TrendCard> {
         height: 160,
         child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       ),
-      error: (_, __) => const SizedBox(),
+      error: (_, _) => const SizedBox(),
       data: (points) {
         if (points.isEmpty) return const SizedBox();
-        final maxVal = points.fold<double>(0, (m, p) => p.total > m ? p.total : m);
+        final maxVal = points.fold<double>(
+          0,
+          (m, p) => p.total > m ? p.total : m,
+        );
+        final maxY = maxVal <= 0 ? 1.0 : maxVal * 1.25;
         final now = DateTime.now();
 
         return Container(
@@ -651,17 +774,19 @@ class _TrendCardState extends ConsumerState<_TrendCard> {
               Row(
                 children: [
                   Text(
-                    'Son 6 Ay',
-                    style: AppTypography.bodyLg
-                        .copyWith(fontWeight: FontWeight.w600),
+                    copyForLocale(context, en: 'Last 6 Months', tr: 'Son 6 Ay'),
+                    style: AppTypography.bodyLg.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const Spacer(),
                   if (_touched >= 0 && _touched < points.length)
                     Text(
                       _fmtTRY(points[_touched].total),
                       style: AppTypography.bodyMd.copyWith(
-                          color: context.colors.primary,
-                          fontWeight: FontWeight.w700),
+                        color: context.colors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                 ],
               ),
@@ -670,12 +795,14 @@ class _TrendCardState extends ConsumerState<_TrendCard> {
                 height: 140,
                 child: BarChart(
                   BarChartData(
-                    maxY: maxVal * 1.25,
+                    minY: 0,
+                    maxY: maxY,
+                    alignment: BarChartAlignment.spaceAround,
                     barTouchData: BarTouchData(
                       touchTooltipData: BarTouchTooltipData(
                         getTooltipColor: (_) => Colors.transparent,
                         tooltipPadding: EdgeInsets.zero,
-                        getTooltipItem: (_, __, ___, ____) => null,
+                        getTooltipItem: (_, _, _, _) => null,
                       ),
                       touchCallback: (event, response) {
                         setState(() {
@@ -692,11 +819,14 @@ class _TrendCardState extends ConsumerState<_TrendCard> {
                     titlesData: FlTitlesData(
                       show: true,
                       leftTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false)),
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
                       rightTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false)),
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
                       topTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false)),
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
                       bottomTitles: AxisTitles(
                         sideTitles: SideTitles(
                           showTitles: true,
@@ -707,10 +837,9 @@ class _TrendCardState extends ConsumerState<_TrendCard> {
                               return const SizedBox();
                             }
                             final p = points[i];
-                            final label = _months[p.month - 1]
-                                .substring(0, 3);
-                            final isCurrent = p.year == now.year &&
-                                p.month == now.month;
+                            final label = shortMonthName(context, p.month);
+                            final isCurrent =
+                                p.year == now.year && p.month == now.month;
                             return Padding(
                               padding: const EdgeInsets.only(top: 6),
                               child: Text(
@@ -733,7 +862,7 @@ class _TrendCardState extends ConsumerState<_TrendCard> {
                     gridData: FlGridData(
                       show: true,
                       drawVerticalLine: false,
-                      horizontalInterval: maxVal > 0 ? maxVal / 3 : 1,
+                      horizontalInterval: maxY / 4,
                       getDrawingHorizontalLine: (_) => FlLine(
                         color: context.colors.outlineSoft,
                         strokeWidth: 1,
@@ -750,19 +879,18 @@ class _TrendCardState extends ConsumerState<_TrendCard> {
                       final color = isCurrent
                           ? context.colors.primary
                           : context.colors.primary.withValues(alpha: 0.35);
+                      final radius = maxVal <= 0
+                          ? const Radius.circular(4)
+                          : const Radius.circular(6);
 
                       return BarChartGroupData(
                         x: i,
                         barRods: [
                           BarChartRodData(
-                            toY: p.total,
-                            color: isTouched
-                                ? context.colors.primary
-                                : color,
+                            toY: maxVal <= 0 ? 0.04 : p.total,
+                            color: isTouched ? context.colors.primary : color,
                             width: 22,
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(6),
-                            ),
+                            borderRadius: BorderRadius.vertical(top: radius),
                           ),
                         ],
                       );
@@ -849,30 +977,46 @@ class _DonutCardState extends State<_DonutCard> {
                   mainAxisSize: MainAxisSize.min,
                   children: selected != null
                       ? [
-                          Text(selected.name,
-                              style: AppTypography.caption,
-                              textAlign: TextAlign.center),
+                          Text(
+                            localizedCategoryName(context, selected.name),
+                            style: AppTypography.caption,
+                            textAlign: TextAlign.center,
+                          ),
                           const SizedBox(height: 2),
-                          Text(_fmtTRY(selected.total),
-                              style: AppTypography.displaySm),
+                          Text(
+                            _fmtTRY(selected.total),
+                            style: AppTypography.displaySm,
+                          ),
                           const SizedBox(height: 2),
                           Text(
                             '${((selected.total / widget.total) * 100).toStringAsFixed(1)}%',
                             style: AppTypography.labelXs.copyWith(
-                                color: context.colors.textLo,
-                                fontWeight: FontWeight.w600),
+                              color: context.colors.textLo,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ]
                       : [
-                          Text('Toplam'.toUpperCase(),
-                              style: AppTypography.labelSm),
+                          Text(
+                            AppLocalizations.of(
+                              context,
+                            ).scanTotal.toUpperCase(),
+                            style: AppTypography.labelSm,
+                          ),
                           const SizedBox(height: 2),
-                          Text(_fmtTRY(widget.total),
-                              style: AppTypography.displaySm),
+                          Text(
+                            _fmtTRY(widget.total),
+                            style: AppTypography.displaySm,
+                          ),
                           const SizedBox(height: 2),
-                          Text('${widget.breakdown.length} kategori',
-                              style: AppTypography.caption
-                                  .copyWith(fontSize: 11)),
+                          Text(
+                            copyForLocale(
+                              context,
+                              en: '${widget.breakdown.length} categories',
+                              tr: '${widget.breakdown.length} kategori',
+                            ),
+                            style: AppTypography.caption.copyWith(fontSize: 11),
+                          ),
                         ],
                 ),
               ],
@@ -902,11 +1046,8 @@ class _BreakdownCard extends StatelessWidget {
         child: Column(
           children: [
             for (int i = 0; i < breakdown.length; i++) ...[
-              if (i > 0)
-                Divider(height: 1, color: context.colors.outlineSoft),
-              _BreakdownRow(
-                  item: breakdown[i],
-                  total: total),
+              if (i > 0) Divider(height: 1, color: context.colors.outlineSoft),
+              _BreakdownRow(item: breakdown[i], total: total),
             ],
           ],
         ),
@@ -922,8 +1063,7 @@ class _BreakdownRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fraction =
-        total > 0 ? (item.total / total).clamp(0.0, 1.0) : 0.0;
+    final fraction = total > 0 ? (item.total / total).clamp(0.0, 1.0) : 0.0;
     final pct = (fraction * 100).toStringAsFixed(1);
     final color = colorFromHex(item.color);
 
@@ -943,18 +1083,25 @@ class _BreakdownRow extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(item.name,
-                    style: AppTypography.bodyMd
-                        .copyWith(fontWeight: FontWeight.w600)),
+                child: Text(
+                  localizedCategoryName(context, item.name),
+                  style: AppTypography.bodyMd.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
-              Text('$pct%',
-                  style: AppTypography.caption.copyWith(fontSize: 12)),
+              Text(
+                '$pct%',
+                style: AppTypography.caption.copyWith(fontSize: 12),
+              ),
               const SizedBox(width: 10),
               SizedBox(
                 width: 80,
-                child: Text(_fmtTRY(item.total),
-                    textAlign: TextAlign.right,
-                    style: AppTypography.amountMd),
+                child: Text(
+                  _fmtTRY(item.total),
+                  textAlign: TextAlign.right,
+                  style: AppTypography.amountMd,
+                ),
               ),
             ],
           ),
@@ -969,9 +1116,13 @@ class _BreakdownRow extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 2),
-          Text('${item.count} harcama',
-              style: AppTypography.labelXs
-                  .copyWith(fontSize: 10, color: context.colors.textLo)),
+          Text(
+            '${item.count} harcama',
+            style: AppTypography.labelXs.copyWith(
+              fontSize: 10,
+              color: context.colors.textLo,
+            ),
+          ),
         ],
       ),
     );

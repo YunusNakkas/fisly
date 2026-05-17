@@ -28,7 +28,7 @@ class FilterChipRow extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
           final c = items[i];
           final active = c.value == selectedValue;
@@ -40,9 +40,7 @@ class FilterChipRow extends StatelessWidget {
               decoration: BoxDecoration(
                 color: active ? AppColors.textHi : AppColors.surface,
                 borderRadius: BorderRadius.circular(AppRadius.pill),
-                border: active
-                    ? null
-                    : Border.all(color: AppColors.outline),
+                border: active ? null : Border.all(color: AppColors.outline),
               ),
               child: Center(
                 child: Text(

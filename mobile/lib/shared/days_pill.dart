@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_radius.dart';
+import '../l10n/localized_copy.dart';
 
 class DaysPill extends StatelessWidget {
   final int days;
@@ -12,19 +13,25 @@ class DaysPill extends StatelessWidget {
     final Color color;
 
     if (days < 0) {
-      label = days == -1 ? 'Dün gecikti' : '${-days} gün gecikti';
+      label = days == -1
+          ? copyForLocale(context, en: 'Overdue yesterday', tr: 'Dün gecikti')
+          : copyForLocale(
+              context,
+              en: '${-days} days overdue',
+              tr: '${-days} gün gecikti',
+            );
       color = AppColors.danger;
     } else if (days == 0) {
-      label = 'Bugün';
+      label = copyForLocale(context, en: 'Today', tr: 'Bugün');
       color = AppColors.danger;
     } else if (days == 1) {
-      label = 'Yarın';
+      label = copyForLocale(context, en: 'Tomorrow', tr: 'Yarın');
       color = const Color(0xFFEA580C);
     } else if (days <= 3) {
-      label = '$days gün';
+      label = copyForLocale(context, en: '$days days', tr: '$days gün');
       color = AppColors.warn;
     } else if (days <= 7) {
-      label = '$days gün';
+      label = copyForLocale(context, en: '$days days', tr: '$days gün');
       color = AppColors.primary;
     } else {
       return const SizedBox.shrink();

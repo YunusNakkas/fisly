@@ -32,33 +32,58 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
       await _api.dio.get('/auth/me');
       if (mounted) state = AuthStatus.authenticated;
     } catch (_) {
-      // 401 olursa interceptor refresh denedi; başarısızsa forceLogout state'i zaten anonymous yaptı
+      // If a 401 occurs, the interceptor already tried refresh. On failure,
+      // forceLogout already moved the state to anonymous.
       if (mounted && state == AuthStatus.unknown) state = AuthStatus.anonymous;
     }
   }
 
   Future<void> login(String email, String password) async {
-    final res = await _api.dio.post('/auth/login', data: {'email': email, 'password': password});
-    await _storage.saveTokens(res.data['access_token'], res.data['refresh_token']);
+    final res = await _api.dio.post(
+      '/auth/login',
+      data: {'email': email, 'password': password},
+    );
+    await _storage.saveTokens(
+      res.data['access_token'],
+      res.data['refresh_token'],
+    );
     state = AuthStatus.authenticated;
   }
 
   Future<void> register(String email, String password, String fullName) async {
-    final res = await _api.dio.post('/auth/register', data: {
-      'email': email,
-      'password': password,
-      'full_name': fullName,
-    });
-    await _storage.saveTokens(res.data['access_token'], res.data['refresh_token']);
+    final res = await _api.dio.post(
+      '/auth/register',
+      data: {'email': email, 'password': password, 'full_name': fullName},
+    );
+    await _storage.saveTokens(
+      res.data['access_token'],
+      res.data['refresh_token'],
+    );
     state = AuthStatus.authenticated;
   }
 
   Future<void> logout() async {
+    try {
+      await _api.dio.post('/auth/logout');
+    } catch (_) {
+      // Perform local logout even when the server is unreachable.
+    }
     await _storage.clear();
     state = AuthStatus.anonymous;
   }
 
-  /// 401 + refresh başarısız sonrası interceptor'dan çağrılır.
+  Future<void> forgotPassword(String email) async {
+    await _api.dio.post('/auth/forgot-password', data: {'email': email});
+  }
+
+  Future<void> resetPassword(String token, String newPassword) async {
+    await _api.dio.post(
+      '/auth/reset-password',
+      data: {'token': token, 'new_password': newPassword},
+    );
+  }
+
+  /// Called by the interceptor after a 401 + failed refresh.
   Future<void> forceLogout() async {
     await _storage.clear();
     if (mounted) state = AuthStatus.anonymous;

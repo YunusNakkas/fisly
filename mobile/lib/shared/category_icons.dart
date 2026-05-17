@@ -22,9 +22,18 @@ const categoryIconSet = <String, IconData>{
 };
 
 const categoryColorPalette = <String>[
-  '#10b981', '#3b82f6', '#f59e0b', '#ef4444',
-  '#ec4899', '#8b5cf6', '#6b7280', '#14b8a6',
-  '#f97316', '#0ea5e9', '#a855f7', '#84cc16',
+  '#10b981',
+  '#3b82f6',
+  '#f59e0b',
+  '#ef4444',
+  '#ec4899',
+  '#8b5cf6',
+  '#6b7280',
+  '#14b8a6',
+  '#f97316',
+  '#0ea5e9',
+  '#a855f7',
+  '#84cc16',
 ];
 
 IconData iconForCategory(String? key) =>

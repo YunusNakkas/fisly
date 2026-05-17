@@ -17,12 +17,12 @@ class Budget {
   });
 
   factory Budget.fromJson(Map<String, dynamic> j) => Budget(
-        id: j['id'] as String,
-        categoryId: j['category_id'] as String?,
-        amount: double.parse(j['amount'].toString()),
-        period: j['period'] as String,
-        startsOn: j['starts_on'] as String,
-      );
+    id: j['id'] as String,
+    categoryId: j['category_id'] as String?,
+    amount: double.parse(j['amount'].toString()),
+    period: j['period'] as String,
+    startsOn: j['starts_on'] as String,
+  );
 }
 
 class BudgetProgress {
@@ -45,25 +45,29 @@ class BudgetProgress {
   });
 
   factory BudgetProgress.fromJson(Map<String, dynamic> j) => BudgetProgress(
-        budgetId: j['budget_id'] as String,
-        categoryId: j['category_id'] as String?,
-        categoryName: j['category_name'] as String?,
-        amount: double.parse(j['amount'].toString()),
-        spent: double.parse(j['spent'].toString()),
-        remaining: double.parse(j['remaining'].toString()),
-        percent: (j['percent'] as num).toDouble(),
-      );
+    budgetId: j['budget_id'] as String,
+    categoryId: j['category_id'] as String?,
+    categoryName: j['category_name'] as String?,
+    amount: double.parse(j['amount'].toString()),
+    spent: double.parse(j['spent'].toString()),
+    remaining: double.parse(j['remaining'].toString()),
+    percent: (j['percent'] as num).toDouble(),
+  );
 }
 
 class BudgetsState {
   final List<Budget> items;
   final bool isLoading;
   const BudgetsState({this.items = const [], this.isLoading = false});
-  BudgetsState copyWith({List<Budget>? items, bool? isLoading}) =>
-      BudgetsState(items: items ?? this.items, isLoading: isLoading ?? this.isLoading);
+  BudgetsState copyWith({List<Budget>? items, bool? isLoading}) => BudgetsState(
+    items: items ?? this.items,
+    isLoading: isLoading ?? this.isLoading,
+  );
 }
 
-final budgetsProvider = StateNotifierProvider<BudgetsNotifier, BudgetsState>((ref) {
+final budgetsProvider = StateNotifierProvider<BudgetsNotifier, BudgetsState>((
+  ref,
+) {
   return BudgetsNotifier(ref.read(apiClientProvider));
 });
 
@@ -91,18 +95,22 @@ class BudgetsNotifier extends StateNotifier<BudgetsState> {
     required String period,
     String? categoryId,
   }) async {
-    await _api.dio.post('/budgets', data: {
-      'amount': double.parse(amount.replaceAll(',', '.')),
-      'period': period,
-      if (categoryId != null) 'category_id': categoryId,
-    });
+    await _api.dio.post(
+      '/budgets',
+      data: {
+        'amount': double.parse(amount.replaceAll(',', '.')),
+        'period': period,
+        'category_id': ?categoryId,
+      },
+    );
     await load();
   }
 
   Future<void> update({required String id, required String amount}) async {
-    await _api.dio.patch('/budgets/$id', data: {
-      'amount': double.parse(amount.replaceAll(',', '.')),
-    });
+    await _api.dio.patch(
+      '/budgets/$id',
+      data: {'amount': double.parse(amount.replaceAll(',', '.'))},
+    );
     await load();
   }
 
@@ -118,10 +126,11 @@ class BudgetsNotifier extends StateNotifier<BudgetsState> {
   }
 }
 
-final budgetsProgressProvider = FutureProvider.autoDispose<List<BudgetProgress>>((ref) async {
-  final api = ref.read(apiClientProvider);
-  final res = await api.dio.get('/budgets/progress');
-  return (res.data as List)
-      .map((e) => BudgetProgress.fromJson(e as Map<String, dynamic>))
-      .toList();
-});
+final budgetsProgressProvider =
+    FutureProvider.autoDispose<List<BudgetProgress>>((ref) async {
+      final api = ref.read(apiClientProvider);
+      final res = await api.dio.get('/budgets/progress');
+      return (res.data as List)
+          .map((e) => BudgetProgress.fromJson(e as Map<String, dynamic>))
+          .toList();
+    });

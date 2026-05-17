@@ -4,8 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 const _kOnboardingDone = 'fisly_onboarding_done';
 
 /// null = still loading from prefs, false = not done, true = done
-final onboardingProvider =
-    StateNotifierProvider<OnboardingNotifier, bool?>((ref) {
+final onboardingProvider = StateNotifierProvider<OnboardingNotifier, bool?>((
+  ref,
+) {
   return OnboardingNotifier();
 });
 

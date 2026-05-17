@@ -18,17 +18,16 @@ class Profile {
     required this.quotaLimit,
   });
 
-  bool get isAtQuotaLimit =>
-      quotaLimit != null && quotaUsed >= quotaLimit!;
+  bool get isAtQuotaLimit => quotaLimit != null && quotaUsed >= quotaLimit!;
 
   factory Profile.fromJson(Map<String, dynamic> j) => Profile(
-        id: j['id'] as String,
-        email: j['email'] as String,
-        fullName: j['full_name'] as String?,
-        plan: j['plan'] as String,
-        quotaUsed: (j['quota_used'] as num?)?.toInt() ?? 0,
-        quotaLimit: (j['quota_limit'] as num?)?.toInt(),
-      );
+    id: j['id'] as String,
+    email: j['email'] as String,
+    fullName: j['full_name'] as String?,
+    plan: j['plan'] as String,
+    quotaUsed: (j['quota_used'] as num?)?.toInt() ?? 0,
+    quotaLimit: (j['quota_limit'] as num?)?.toInt(),
+  );
 }
 
 final profileProvider = FutureProvider.autoDispose<Profile>((ref) async {
@@ -49,10 +48,10 @@ class ProfileUpdater {
     required String currentPassword,
     required String newPassword,
   }) async {
-    await _api.dio.patch('/auth/me', data: {
-      'current_password': currentPassword,
-      'new_password': newPassword,
-    });
+    await _api.dio.patch(
+      '/auth/me',
+      data: {'current_password': currentPassword, 'new_password': newPassword},
+    );
   }
 }
 

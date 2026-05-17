@@ -4,6 +4,7 @@ import '../../auth/profile_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../l10n/app_localizations.dart';
 
 class PasswordChangeScreen extends ConsumerStatefulWidget {
   const PasswordChangeScreen({super.key});
@@ -34,24 +35,28 @@ class _PasswordChangeScreenState extends ConsumerState<PasswordChangeScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
     try {
-      await ref.read(profileUpdaterProvider).changePassword(
+      await ref
+          .read(profileUpdaterProvider)
+          .changePassword(
             currentPassword: _currentCtrl.text,
             newPassword: _newCtrl.text,
           );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Şifre değiştirildi')),
-        );
+        final t = AppLocalizations.of(context);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(t.passwordChangeSuccess)));
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        final msg = e.toString().contains('Mevcut şifre hatalı')
-            ? 'Mevcut şifre hatalı'
-            : 'Kaydedilemedi: $e';
+        final t = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: context.colors.danger),
+          SnackBar(
+            content: Text(t.passwordChangeFailed),
+            backgroundColor: context.colors.danger,
+          ),
         );
       }
     }
@@ -59,18 +64,20 @@ class _PasswordChangeScreenState extends ConsumerState<PasswordChangeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
     final pwd = _newCtrl.text;
     final checks = [
-      ('En az 8 karakter', pwd.length >= 8),
-      ('Bir büyük harf', RegExp(r'[A-ZÇĞİÖŞÜ]').hasMatch(pwd)),
-      ('Bir rakam', RegExp(r'[0-9]').hasMatch(pwd)),
-      ('Bir özel karakter', RegExp(r'[^A-Za-z0-9]').hasMatch(pwd)),
+      (t.passwordCheckMin8, pwd.length >= 8),
+      (t.passwordCheckUpper, RegExp(r'[A-ZÇĞİÖŞÜ]').hasMatch(pwd)),
+      (t.passwordCheckDigit, RegExp(r'[0-9]').hasMatch(pwd)),
+      (t.passwordCheckSpecial, RegExp(r'[^A-Za-z0-9]').hasMatch(pwd)),
     ];
 
     return Scaffold(
       backgroundColor: context.colors.bg,
-      appBar:
-          AppBar(title: Text('Şifre Değiştir', style: AppTypography.titleLg)),
+      appBar: AppBar(
+        title: Text(t.passwordChangeTitle, style: AppTypography.titleLg),
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -84,13 +91,15 @@ class _PasswordChangeScreenState extends ConsumerState<PasswordChangeScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.shield_outlined,
-                      size: 20, color: context.colors.onPrimaryContainer),
+                  Icon(
+                    Icons.shield_outlined,
+                    size: 20,
+                    color: context.colors.onPrimaryContainer,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Güvenli bir şifre için en az 8 karakter, bir büyük harf, '
-                      'bir rakam ve bir özel karakter içermeli.',
+                      t.passwordHint,
                       style: AppTypography.caption.copyWith(
                         fontSize: 12,
                         color: context.colors.onPrimaryContainer,
@@ -106,17 +115,19 @@ class _PasswordChangeScreenState extends ConsumerState<PasswordChangeScreen> {
               controller: _currentCtrl,
               obscureText: _obscureCurrent,
               decoration: InputDecoration(
-                labelText: 'Mevcut şifre',
+                labelText: t.passwordChangeCurrent,
                 suffixIcon: IconButton(
-                  icon: Icon(_obscureCurrent
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined),
+                  icon: Icon(
+                    _obscureCurrent
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
                   onPressed: () =>
                       setState(() => _obscureCurrent = !_obscureCurrent),
                 ),
               ),
               validator: (v) =>
-                  (v?.isEmpty ?? true) ? 'Mevcut şifre gerekli' : null,
+                  (v?.isEmpty ?? true) ? t.validationPasswordRequired : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -124,25 +135,26 @@ class _PasswordChangeScreenState extends ConsumerState<PasswordChangeScreen> {
               obscureText: _obscureNew,
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                labelText: 'Yeni şifre',
+                labelText: t.passwordChangeNew,
                 suffixIcon: IconButton(
-                  icon: Icon(_obscureNew
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined),
+                  icon: Icon(
+                    _obscureNew
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
                   onPressed: () => setState(() => _obscureNew = !_obscureNew),
                 ),
               ),
               validator: (v) =>
-                  (v == null || v.length < 6) ? 'En az 6 karakter' : null,
+                  (v == null || v.length < 6) ? t.validationPasswordMin6 : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _confirmCtrl,
               obscureText: true,
-              decoration:
-                  const InputDecoration(labelText: 'Yeni şifre (tekrar)'),
+              decoration: InputDecoration(labelText: t.passwordChangeConfirm),
               validator: (v) =>
-                  v != _newCtrl.text ? 'Şifreler eşleşmiyor' : null,
+                  v != _newCtrl.text ? t.passwordChangeMismatch : null,
             ),
             const SizedBox(height: 18),
             Container(
@@ -168,8 +180,11 @@ class _PasswordChangeScreenState extends ConsumerState<PasswordChangeScreen> {
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
-                  : const Text('Şifreyi güncelle'),
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(t.resetSubmit),
             ),
           ],
         ),

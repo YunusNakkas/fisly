@@ -4,10 +4,13 @@ import 'package:dio/dio.dart';
 import '../budgets_provider.dart';
 import '../../categories/categories_provider.dart';
 import '../../../shared/category_avatar.dart';
+import '../../../shared/category_chip_picker.dart';
 import '../../../shared/section_label.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../l10n/localized_copy.dart';
 
 class BudgetsScreen extends ConsumerStatefulWidget {
   const BudgetsScreen({super.key});
@@ -31,13 +34,16 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
     final categoryById = <String, Category>{
       for (final c in categoriesAsync.value ?? const <Category>[]) c.id: c,
     };
-    final budgetById = <String, Budget>{
-      for (final b in state.items) b.id: b,
-    };
+    final budgetById = <String, Budget>{for (final b in state.items) b.id: b};
 
     return Scaffold(
       backgroundColor: context.colors.bg,
-      appBar: AppBar(title: Text('Bütçeler', style: AppTypography.titleLg)),
+      appBar: AppBar(
+        title: Text(
+          AppLocalizations.of(context).budgetsTitle,
+          style: AppTypography.titleLg,
+        ),
+      ),
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -48,8 +54,11 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                       loading: () =>
                           const Center(child: CircularProgressIndicator()),
                       error: (e, _) => Center(
-                          child: Text('Yüklenemedi: $e',
-                              style: AppTypography.caption)),
+                        child: Text(
+                          '${copyForLocale(context, en: 'Could not load', tr: 'Yüklenemedi')}: $e',
+                          style: AppTypography.caption,
+                        ),
+                      ),
                       data: (items) {
                         items.sort((a, b) {
                           if (a.categoryId == null && b.categoryId != null) {
@@ -62,13 +71,15 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                         });
 
                         final total = items.fold<double>(
-                            0, (s, b) => s + b.amount);
-                        final overCount =
-                            items.where((b) => b.percent >= 100).length;
+                          0,
+                          (s, b) => s + b.amount,
+                        );
+                        final overCount = items
+                            .where((b) => b.percent >= 100)
+                            .length;
 
                         return ListView(
-                          padding:
-                              const EdgeInsets.fromLTRB(16, 8, 16, 120),
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
                           children: [
                             _SummaryCard(
                               total: total,
@@ -76,7 +87,13 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                               overCount: overCount,
                             ),
                             const SizedBox(height: 18),
-                            const SectionLabel('Aktif bütçeler'),
+                            SectionLabel(
+                              copyForLocale(
+                                context,
+                                en: 'Active budgets',
+                                tr: 'Aktif bütçeler',
+                              ),
+                            ),
                             const SizedBox(height: 4),
                             for (final p in items)
                               Padding(
@@ -103,7 +120,8 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                             _TipCard(),
                           ],
                         );
-                      }),
+                      },
+                    ),
             ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'fab_budgets',
@@ -129,16 +147,23 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                     color: context.colors.primary.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(AppRadius.lg),
                   ),
-                  child: Icon(Icons.account_balance_wallet_outlined,
-                      size: 28, color: context.colors.primary),
+                  child: Icon(
+                    Icons.account_balance_wallet_outlined,
+                    size: 28,
+                    color: context.colors.primary,
+                  ),
                 ),
                 const SizedBox(height: 16),
-                Text('Henüz bütçe yok',
-                    style: AppTypography.titleMd),
+                Text(
+                  AppLocalizations.of(context).budgetsEmptyState,
+                  style: AppTypography.titleMd,
+                ),
                 const SizedBox(height: 6),
-                Text('Genel veya kategori bazlı limit ekle.',
-                    style: AppTypography.caption,
-                    textAlign: TextAlign.center),
+                Text(
+                  AppLocalizations.of(context).budgetsAddHint,
+                  style: AppTypography.caption,
+                  textAlign: TextAlign.center,
+                ),
               ],
             ),
           ),
@@ -148,19 +173,37 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
   }
 
   Future<void> _confirmDelete(BuildContext context, Budget b) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final danger = context.colors.danger;
+    final deleteFailed = copyForLocale(
+      context,
+      en: 'Could not delete',
+      tr: 'Silinemedi',
+    );
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: const Text('Bütçeyi sil'),
-        content: const Text('Bu bütçe silinsin mi?'),
+        title: Text(
+          copyForLocale(context, en: 'Delete budget', tr: 'Bütçeyi sil'),
+        ),
+        content: Text(
+          copyForLocale(
+            context,
+            en: 'Delete this budget?',
+            tr: 'Bu bütçe silinsin mi?',
+          ),
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, false),
-              child: const Text('Vazgeç')),
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: Text(AppLocalizations.of(context).actionCancel),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, true),
-            child: Text('Sil',
-                style: TextStyle(color: context.colors.danger)),
+            child: Text(
+              AppLocalizations.of(context).actionDelete,
+              style: TextStyle(color: danger),
+            ),
           ),
         ],
       ),
@@ -171,10 +214,11 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
         ref.invalidate(budgetsProgressProvider);
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(
-                content: Text('Silinemedi: $e'),
-                backgroundColor: context.colors.danger),
+              content: Text('$deleteFailed: $e'),
+              backgroundColor: danger,
+            ),
           );
         }
       }
@@ -182,8 +226,11 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
   }
 
   void _showEditSheet(BuildContext context, Budget b) {
-    final amountController =
-        TextEditingController(text: b.amount.toStringAsFixed(2));
+    final amountController = TextEditingController(
+      text: b.amount.toStringAsFixed(2),
+    );
+    final messenger = ScaffoldMessenger.of(context);
+    final danger = context.colors.danger;
     final formKey = GlobalKey<FormState>();
     bool saving = false;
 
@@ -192,8 +239,7 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
       isScrollControlled: true,
       backgroundColor: context.colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
@@ -208,21 +254,26 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
               if (!(formKey.currentState?.validate() ?? false)) return;
               setSheet(() => saving = true);
               try {
-                await ref.read(budgetsProvider.notifier).update(
-                      id: b.id,
-                      amount: amountController.text.trim(),
-                    );
+                await ref
+                    .read(budgetsProvider.notifier)
+                    .update(id: b.id, amount: amountController.text.trim());
                 ref.invalidate(budgetsProgressProvider);
-                if (ctx.mounted) Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Bütçe güncellendi')),
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(AppLocalizations.of(ctx).budgetsUpdated),
+                  ),
                 );
               } catch (e) {
                 if (ctx.mounted) setSheet(() => saving = false);
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
-                      content: Text('Kaydedilemedi: $e'),
-                      backgroundColor: context.colors.danger),
+                    content: Text(
+                      '${copyForLocale(ctx, en: 'Could not save', tr: 'Kaydedilemedi')}: $e',
+                    ),
+                    backgroundColor: danger,
+                  ),
                 );
               }
             }
@@ -233,17 +284,24 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Bütçeyi Düzenle', style: AppTypography.titleLg),
+                  Text(
+                    AppLocalizations.of(ctx).budgetsEditTitle,
+                    style: AppTypography.titleLg,
+                  ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: amountController,
-                    decoration: const InputDecoration(labelText: 'Tutar (TL)'),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(ctx).budgetsAmount,
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     validator: (v) {
-                      final d =
-                          double.tryParse(v?.replaceAll(',', '.') ?? '');
-                      if (d == null || d <= 0) return 'Geçerli tutar gir';
+                      final d = double.tryParse(v?.replaceAll(',', '.') ?? '');
+                      if (d == null || d <= 0) {
+                        return AppLocalizations.of(ctx).validationAmountInvalid;
+                      }
                       return null;
                     },
                   ),
@@ -255,8 +313,13 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Text('Güncelle'),
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            copyForLocale(ctx, en: 'Update', tr: 'Güncelle'),
+                          ),
                   ),
                 ],
               ),
@@ -269,6 +332,8 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
 
   void _showAddSheet(BuildContext context) {
     final amountController = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
+    final danger = context.colors.danger;
     String period = 'monthly';
     String? categoryId;
     final formKey = GlobalKey<FormState>();
@@ -279,8 +344,7 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
       isScrollControlled: true,
       backgroundColor: context.colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (_) => Padding(
         padding: EdgeInsets.only(
@@ -297,15 +361,20 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
               if (!(formKey.currentState?.validate() ?? false)) return;
               setSheet(() => saving = true);
               try {
-                await ref.read(budgetsProvider.notifier).add(
+                await ref
+                    .read(budgetsProvider.notifier)
+                    .add(
                       amount: amountController.text.trim(),
                       period: period,
                       categoryId: categoryId,
                     );
                 ref.invalidate(budgetsProgressProvider);
-                if (ctx.mounted) Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Bütçe eklendi')),
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(AppLocalizations.of(ctx).budgetsSaved),
+                  ),
                 );
               } on DioException catch (e) {
                 final data = e.response?.data;
@@ -314,23 +383,24 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                   final detail = data['detail'];
                   msg = detail is List
                       ? detail.map((d) => d['msg']).join(', ')
-                      : 'Hata: $detail';
+                      : '${copyForLocale(ctx, en: 'Error', tr: 'Hata')}: $detail';
                 } else if (data is String && data.isNotEmpty) {
                   msg = data;
                 } else {
                   msg =
-                      'Sunucu hatası: ${e.response?.statusCode} — ${e.message}';
+                      '${copyForLocale(ctx, en: 'Server error', tr: 'Sunucu hatası')}: ${e.response?.statusCode} — ${e.message}';
                 }
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text(msg),
-                      backgroundColor: context.colors.danger),
+                messenger.showSnackBar(
+                  SnackBar(content: Text(msg), backgroundColor: danger),
                 );
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
-                      content: Text('Hata: $e'),
-                      backgroundColor: context.colors.danger),
+                    content: Text(
+                      '${copyForLocale(ctx, en: 'Error', tr: 'Hata')}: $e',
+                    ),
+                    backgroundColor: danger,
+                  ),
                 );
               } finally {
                 if (ctx.mounted) setSheet(() => saving = false);
@@ -343,47 +413,57 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Bütçe Ekle', style: AppTypography.titleLg),
+                  Text(
+                    AppLocalizations.of(ctx).budgetsAddTitle,
+                    style: AppTypography.titleLg,
+                  ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: amountController,
-                    decoration: const InputDecoration(labelText: 'Tutar (TL)'),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(ctx).budgetsAmount,
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     validator: (v) {
-                      final d =
-                          double.tryParse(v?.replaceAll(',', '.') ?? '');
-                      if (d == null || d <= 0) return 'Geçerli tutar gir';
+                      final d = double.tryParse(v?.replaceAll(',', '.') ?? '');
+                      if (d == null || d <= 0) {
+                        return AppLocalizations.of(ctx).validationAmountInvalid;
+                      }
                       return null;
                     },
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: period,
-                    decoration: const InputDecoration(labelText: 'Periyot'),
-                    items: const [
-                      DropdownMenuItem(value: 'monthly', child: Text('Aylık')),
+                    decoration: InputDecoration(
+                      labelText: AppLocalizations.of(ctx).budgetsPeriodLabel,
+                    ),
+                    items: [
                       DropdownMenuItem(
-                          value: 'weekly', child: Text('Haftalık')),
+                        value: 'monthly',
+                        child: Text(
+                          AppLocalizations.of(ctx).budgetsPeriodMonthly,
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'weekly',
+                        child: Text(
+                          AppLocalizations.of(ctx).budgetsPeriodWeekly,
+                        ),
+                      ),
                     ],
-                    onChanged: (v) =>
-                        setSheet(() => period = v ?? 'monthly'),
+                    onChanged: (v) => setSheet(() => period = v ?? 'monthly'),
                   ),
                   const SizedBox(height: 12),
                   categoriesAsync.when(
                     loading: () => const LinearProgressIndicator(),
                     error: (e, _) => const SizedBox(),
-                    data: (cats) => DropdownButtonFormField<String?>(
-                      initialValue: categoryId,
-                      decoration:
-                          const InputDecoration(labelText: 'Kategori'),
-                      items: [
-                        const DropdownMenuItem<String?>(
-                            value: null,
-                            child: Text('Genel (tüm harcamalar)')),
-                        ...cats.map((c) => DropdownMenuItem<String?>(
-                            value: c.id, child: Text(c.name))),
-                      ],
+                    data: (cats) => CategoryChipPicker(
+                      categories: cats,
+                      selectedId: categoryId,
+                      allOptionLabel: AppLocalizations.of(ctx).budgetsGeneral,
                       onChanged: (v) => setSheet(() => categoryId = v),
                     ),
                   ),
@@ -395,8 +475,11 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Text('Kaydet'),
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(AppLocalizations.of(ctx).actionSave),
                   ),
                 ],
               ),
@@ -431,7 +514,11 @@ class _SummaryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'BU AY TOPLAM BÜTÇEN',
+            copyForLocale(
+              context,
+              en: 'YOUR TOTAL BUDGET THIS MONTH',
+              tr: 'BU AY TOPLAM BÜTÇEN',
+            ),
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -440,21 +527,37 @@ class _SummaryCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(_fmtTRY(total),
-              style: AppTypography.displaySm.copyWith(fontSize: 30)),
+          Text(
+            _fmtTRY(total),
+            style: AppTypography.displaySm.copyWith(fontSize: 30),
+          ),
           const SizedBox(height: 8),
           RichText(
             text: TextSpan(
-              style: AppTypography.bodySm
-                  .copyWith(color: context.colors.textMid, fontSize: 13),
+              style: AppTypography.bodySm.copyWith(
+                color: context.colors.textMid,
+                fontSize: 13,
+              ),
               children: [
-                TextSpan(text: '$count bütçe'),
+                TextSpan(
+                  text: copyForLocale(
+                    context,
+                    en: '$count budgets',
+                    tr: '$count bütçe',
+                  ),
+                ),
                 if (overCount > 0) ...[
                   const TextSpan(text: ' · '),
                   TextSpan(
-                    text: '$overCount aşıldı',
+                    text: copyForLocale(
+                      context,
+                      en: '$overCount exceeded',
+                      tr: '$overCount aşıldı',
+                    ),
                     style: TextStyle(
-                        color: context.colors.warn, fontWeight: FontWeight.w600),
+                      color: context.colors.warn,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ],
@@ -486,8 +589,10 @@ class _BudgetCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final pct = (progress.percent / 100).clamp(0.0, 1.0);
     final isGeneral = progress.categoryId == null;
-    final label = isGeneral ? 'Genel bütçe' : (category?.name ?? 'Kategori');
-    final periodLabel = budget?.period == 'weekly' ? 'Haftalık' : 'Aylık';
+    final label = isGeneral
+        ? copyForLocale(context, en: 'General budget', tr: 'Genel bütçe')
+        : localizedCategoryName(context, category?.name);
+    final periodText = periodLabel(context, budget?.period ?? 'monthly');
 
     final Color statusColor;
     if (progress.percent >= 100) {
@@ -507,8 +612,11 @@ class _BudgetCard extends StatelessWidget {
           color: context.colors.primaryContainer,
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
-        child: Icon(Icons.account_balance_wallet,
-            color: context.colors.onPrimaryContainer, size: 18),
+        child: Icon(
+          Icons.account_balance_wallet,
+          color: context.colors.onPrimaryContainer,
+          size: 18,
+        ),
       );
     } else {
       leading = CategoryAvatar(
@@ -536,12 +644,15 @@ class _BudgetCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label,
-                        style: AppTypography.bodyLg
-                            .copyWith(fontWeight: FontWeight.w600)),
+                    Text(
+                      label,
+                      style: AppTypography.bodyLg.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 2),
                     Text(
-                      '$periodLabel · ${_fmtTRY(progress.amount)} limit',
+                      '$periodText · ${_fmtTRY(progress.amount)} limit',
                       style: AppTypography.caption.copyWith(fontSize: 11),
                     ),
                   ],
@@ -550,17 +661,27 @@ class _BudgetCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('${progress.percent.toStringAsFixed(0)}%',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: statusColor,
-                      )),
+                  Text(
+                    '${progress.percent.toStringAsFixed(0)}%',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor,
+                    ),
+                  ),
                   const SizedBox(height: 1),
                   Text(
                     progress.remaining >= 0
-                        ? '${_fmtTRY(progress.remaining)} kaldı'
-                        : '${_fmtTRY(-progress.remaining)} aşıldı',
+                        ? copyForLocale(
+                            context,
+                            en: '${_fmtTRY(progress.remaining)} left',
+                            tr: '${_fmtTRY(progress.remaining)} kaldı',
+                          )
+                        : copyForLocale(
+                            context,
+                            en: '${_fmtTRY(-progress.remaining)} over',
+                            tr: '${_fmtTRY(-progress.remaining)} aşıldı',
+                          ),
                     style: AppTypography.labelXs.copyWith(
                       fontSize: 10,
                       color: progress.remaining >= 0
@@ -572,18 +693,27 @@ class _BudgetCard extends StatelessWidget {
                 ],
               ),
               PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert,
-                    size: 16, color: context.colors.textLo),
+                icon: Icon(
+                  Icons.more_vert,
+                  size: 16,
+                  color: context.colors.textLo,
+                ),
                 onSelected: (v) {
                   if (v == 'edit') onEdit();
                   if (v == 'delete') onDelete();
                 },
                 itemBuilder: (_) => [
-                  const PopupMenuItem(value: 'edit', child: Text('Düzenle')),
                   PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Sil',
-                          style: TextStyle(color: context.colors.danger))),
+                    value: 'edit',
+                    child: Text(AppLocalizations.of(context).actionEdit),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text(
+                      AppLocalizations.of(context).actionDelete,
+                      style: TextStyle(color: context.colors.danger),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -602,10 +732,14 @@ class _BudgetCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(_fmtTRY(progress.spent),
-                  style: AppTypography.caption.copyWith(fontSize: 11)),
-              Text(_fmtTRY(progress.amount),
-                  style: AppTypography.caption.copyWith(fontSize: 11)),
+              Text(
+                _fmtTRY(progress.spent),
+                style: AppTypography.caption.copyWith(fontSize: 11),
+              ),
+              Text(
+                _fmtTRY(progress.amount),
+                style: AppTypography.caption.copyWith(fontSize: 11),
+              ),
             ],
           ),
         ],
@@ -627,8 +761,7 @@ class _TipCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.auto_awesome,
-              size: 16, color: context.colors.primary),
+          Icon(Icons.auto_awesome, size: 16, color: context.colors.primary),
           const SizedBox(width: 10),
           Expanded(
             child: RichText(
@@ -640,15 +773,18 @@ class _TipCard extends StatelessWidget {
                 ),
                 children: [
                   TextSpan(
-                    text: 'İpucu: ',
+                    text: copyForLocale(context, en: 'Tip: ', tr: 'İpucu: '),
                     style: TextStyle(
                       color: context.colors.textHi,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   TextSpan(
-                    text:
-                        'Her kategoriye ayrı bütçe koyarsan harcama dağılımın daha net olur.',
+                    text: copyForLocale(
+                      context,
+                      en: 'Set separate budgets for each category to see your spending distribution more clearly.',
+                      tr: 'Her kategoriye ayrı bütçe koyarsan harcama dağılımın daha net olur.',
+                    ),
                   ),
                 ],
               ),
