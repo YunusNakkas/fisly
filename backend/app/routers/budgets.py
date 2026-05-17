@@ -30,7 +30,7 @@ def _period_range(period: BudgetPeriod, ref: date) -> tuple[datetime, datetime]:
             if ref.month < 12
             else datetime(ref.year + 1, 1, 1)
         )
-    else:  # weekly — pazartesi başlangıç
+    else:  # weekly - starts on Monday
         weekday = ref.weekday()
         start_d = ref.fromordinal(ref.toordinal() - weekday)
         start = datetime(start_d.year, start_d.month, start_d.day)
@@ -70,7 +70,7 @@ async def create_budget(
         await db.rollback()
         raise HTTPException(
             status_code=409,
-            detail="Bu kategori için zaten bir bütçe tanımlı",
+            detail="A budget is already defined for this category",
         )
     await db.refresh(budget)
     return budget
@@ -90,7 +90,7 @@ async def update_budget(
     )
     budget = result.scalar_one_or_none()
     if not budget:
-        raise HTTPException(status_code=404, detail="Bütçe bulunamadı")
+        raise HTTPException(status_code=404, detail="Budget not found")
 
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(budget, field, value)
@@ -113,7 +113,7 @@ async def delete_budget(
     )
     budget = result.scalar_one_or_none()
     if not budget:
-        raise HTTPException(status_code=404, detail="Bütçe bulunamadı")
+        raise HTTPException(status_code=404, detail="Budget not found")
     await db.delete(budget)
     await db.commit()
 

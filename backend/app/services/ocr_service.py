@@ -6,28 +6,36 @@ from app.config import settings
 genai.configure(api_key=settings.GEMINI_API_KEY)
 _model = genai.GenerativeModel("gemini-1.5-flash")
 
-_SYSTEM_CATEGORIES = ["Market", "Ulaşım", "Faturalar", "Yeme-İçme", "Sağlık", "Eğlence", "Diğer"]
+_SYSTEM_CATEGORIES = [
+    "Groceries",
+    "Transportation",
+    "Bills",
+    "Food & Drink",
+    "Health",
+    "Entertainment",
+    "Other",
+]
 
-_PROMPT = f"""Bu bir Türkçe fiş veya fatura fotoğrafıdır. Fişten aşağıdaki bilgileri çıkar ve SADECE geçerli JSON döndür:
+_PROMPT = f"""This is a Turkish receipt or invoice photo. Extract the following information and return ONLY valid JSON:
 
 {{
-  "merchant": "işletme/market adı veya null",
-  "total_amount": toplam_tutar_sayı_veya_null,
-  "receipt_date": "YYYY-MM-DD formatında tarih veya null",
+  "merchant": "business/store name or null",
+  "total_amount": total_amount_number_or_null,
+  "receipt_date": "date in YYYY-MM-DD format or null",
   "items": [
     {{
-      "name": "ürün adı",
-      "quantity": miktar_sayı_veya_null,
-      "unit_price": birim_fiyat_sayı_veya_null,
-      "total": toplam_fiyat_sayı_veya_null,
-      "category": "şu kategorilerden biri: {', '.join(_SYSTEM_CATEGORIES)}"
+      "name": "item name",
+      "quantity": quantity_number_or_null,
+      "unit_price": unit_price_number_or_null,
+      "total": total_price_number_or_null,
+      "category": "one of these categories: {', '.join(_SYSTEM_CATEGORIES)}"
     }}
   ]
 }}
 
-Her ürün için category alanını şu kategorilerden birine ata: {', '.join(_SYSTEM_CATEGORIES)}.
-Eğer ürün hangi kategoriye girdiği belirsizse "Diğer" kullan.
-Başka metin, açıklama veya markdown ekleme. Sadece JSON."""
+Assign the category field for each item to one of these categories: {', '.join(_SYSTEM_CATEGORIES)}.
+If the category is unclear, use "Other".
+Do not include any other text, explanation or markdown. Only JSON."""
 
 
 def _clean_json(text: str) -> str:

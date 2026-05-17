@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Query
+import csv
+import io
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from decimal import Decimal
@@ -53,7 +55,7 @@ async def get_summary(
     from_dt = datetime(year, month, 1)
     to_dt = datetime(year, month + 1, 1) if month < 12 else datetime(year + 1, 1, 1)
 
-    # Toplam + sayı
+    # Total + count
     total_result = await db.execute(
         select(func.coalesce(func.sum(Expense.amount), 0), func.count(Expense.id))
         .where(
@@ -64,7 +66,7 @@ async def get_summary(
     )
     total_amount, expense_count = total_result.one()
 
-    # Kategori bazlı dağılım
+    # Category breakdown
     breakdown_result = await db.execute(
         select(
             Category.id,
@@ -148,3 +150,53 @@ async def get_trends(
         result.append(MonthTrend(year=y, month=m, total=total, count=count))
 
     return result
+
+
+@router.get("/export.csv")
+async def export_month_csv(
+    year: int = Query(default=None),
+    month: int = Query(default=None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from datetime import datetime
+
+    today = date.today()
+    year = year or today.year
+    month = month or today.month
+
+    from_dt = datetime(year, month, 1)
+    to_dt = datetime(year, month + 1, 1) if month < 12 else datetime(year + 1, 1, 1)
+
+    rows = await db.execute(
+        select(Expense, Category.name)
+        .join(Category, Expense.category_id == Category.id, isouter=True)
+        .where(
+            Expense.user_id == current_user.id,
+            Expense.spent_at >= from_dt,
+            Expense.spent_at < to_dt,
+        )
+        .order_by(Expense.spent_at.desc())
+    )
+
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(["date", "merchant", "category", "note", "amount", "currency"])
+    for expense, category_name in rows.all():
+        writer.writerow(
+            [
+                expense.spent_at.isoformat(),
+                expense.merchant or "",
+                category_name or "",
+                expense.note or "",
+                str(expense.amount),
+                expense.currency,
+            ]
+        )
+
+    filename = f"fisly-{year}-{month:02d}.csv"
+    return Response(
+        content=out.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

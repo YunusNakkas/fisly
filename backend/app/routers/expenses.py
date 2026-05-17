@@ -38,6 +38,7 @@ async def list_expenses(
     from_date: datetime | None = Query(None, alias="from"),
     to_date: datetime | None = Query(None, alias="to"),
     category_id: UUID | None = None,
+    receipt_id: UUID | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -48,6 +49,8 @@ async def list_expenses(
         stmt = stmt.where(Expense.spent_at <= to_date)
     if category_id:
         stmt = stmt.where(Expense.category_id == category_id)
+    if receipt_id:
+        stmt = stmt.where(Expense.receipt_id == receipt_id)
     stmt = stmt.order_by(Expense.spent_at.desc())
     result = await db.execute(stmt)
     return result.scalars().all()
@@ -64,7 +67,7 @@ async def get_expense(
     )
     expense = result.scalar_one_or_none()
     if not expense:
-        raise HTTPException(status_code=404, detail="Harcama bulunamadı")
+        raise HTTPException(status_code=404, detail="Expense not found")
     return expense
 
 
@@ -80,7 +83,7 @@ async def update_expense(
     )
     expense = result.scalar_one_or_none()
     if not expense:
-        raise HTTPException(status_code=404, detail="Harcama bulunamadı")
+        raise HTTPException(status_code=404, detail="Expense not found")
 
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(expense, field, value)
@@ -101,7 +104,7 @@ async def delete_expense(
     )
     expense = result.scalar_one_or_none()
     if not expense:
-        raise HTTPException(status_code=404, detail="Harcama bulunamadı")
+        raise HTTPException(status_code=404, detail="Expense not found")
 
     await db.delete(expense)
     await db.commit()

@@ -19,13 +19,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 SYSTEM_CATEGORIES = [
-    ("Market", "shopping_cart", "#10b981"),
-    ("Ulaşım", "directions_car", "#3b82f6"),
-    ("Faturalar", "receipt_long", "#f59e0b"),
-    ("Yeme-İçme", "restaurant", "#ef4444"),
-    ("Sağlık", "local_hospital", "#ec4899"),
-    ("Eğlence", "movie", "#8b5cf6"),
-    ("Diğer", "more_horiz", "#6b7280"),
+    ("Groceries", "shopping_cart", "#10b981"),
+    ("Transportation", "directions_car", "#3b82f6"),
+    ("Bills", "receipt_long", "#f59e0b"),
+    ("Food & Drink", "restaurant", "#ef4444"),
+    ("Health", "local_hospital", "#ec4899"),
+    ("Entertainment", "movie", "#8b5cf6"),
+    ("Other", "more_horiz", "#6b7280"),
 ]
 
 

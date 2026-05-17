@@ -60,7 +60,7 @@ async def update_subscription(
     )
     sub = result.scalar_one_or_none()
     if not sub:
-        raise HTTPException(status_code=404, detail="Abonelik bulunamadı")
+        raise HTTPException(status_code=404, detail="Subscription not found")
 
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(sub, field, value)
@@ -83,7 +83,7 @@ async def delete_subscription(
     )
     sub = result.scalar_one_or_none()
     if not sub:
-        raise HTTPException(status_code=404, detail="Abonelik bulunamadı")
+        raise HTTPException(status_code=404, detail="Subscription not found")
     await db.delete(sub)
     await db.commit()
 
@@ -101,7 +101,7 @@ async def cancel_subscription(
     )
     sub = result.scalar_one_or_none()
     if not sub:
-        raise HTTPException(status_code=404, detail="Abonelik bulunamadı")
+        raise HTTPException(status_code=404, detail="Subscription not found")
     sub.status = SubscriptionStatus.cancelled
     await db.commit()
     await db.refresh(sub)

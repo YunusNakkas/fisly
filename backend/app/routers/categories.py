@@ -16,7 +16,7 @@ async def list_categories(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Sistem kategorileri (user_id NULL) + kullanıcının kendi kategorileri
+    # System categories (user_id NULL) + the user's custom categories
     result = await db.execute(
         select(Category)
         .where(or_(Category.user_id.is_(None), Category.user_id == current_user.id))
@@ -56,9 +56,9 @@ async def update_category(
     )
     category = result.scalar_one_or_none()
     if not category:
-        raise HTTPException(status_code=404, detail="Kategori bulunamadı")
+        raise HTTPException(status_code=404, detail="Category not found")
     if category.is_system:
-        raise HTTPException(status_code=403, detail="Sistem kategorisi düzenlenemez")
+        raise HTTPException(status_code=403, detail="System categories cannot be edited")
 
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(category, field, value)
@@ -79,9 +79,9 @@ async def delete_category(
     )
     category = result.scalar_one_or_none()
     if not category:
-        raise HTTPException(status_code=404, detail="Kategori bulunamadı")
+        raise HTTPException(status_code=404, detail="Category not found")
     if category.is_system:
-        raise HTTPException(status_code=403, detail="Sistem kategorisi silinemez")
+        raise HTTPException(status_code=403, detail="System categories cannot be deleted")
 
     await db.delete(category)
     await db.commit()

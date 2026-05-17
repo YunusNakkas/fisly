@@ -41,7 +41,7 @@ async def submit_feedback(
     await db.commit()
     await db.refresh(fb)
     logger.info(
-        "YENİ GERİ BİLDİRİM | kullanıcı: %s | tür: %s | başlık: %s | mesaj: %s",
+        "NEW FEEDBACK | user: %s | type: %s | subject: %s | message: %s",
         current_user.email,
         body.kind,
         body.subject,

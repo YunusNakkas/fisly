@@ -25,6 +25,7 @@ class ExpenseResponse(BaseModel):
     id: UUID
     user_id: UUID
     category_id: UUID | None
+    receipt_id: UUID | None
     amount: Decimal
     currency: str
     merchant: str | None

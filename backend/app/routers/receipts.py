@@ -4,13 +4,15 @@ import aiofiles
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.core.deps import get_current_user
+from app.core.limiter import limiter
 from app.models.user import User
 from app.models.receipt import Receipt, ReceiptStatus
+from app.models.receipt_item import ReceiptItem
 from app.models.expense import Expense
 from app.models.category import Category
 from app.schemas.receipt import ReceiptScanResponse, ReceiptResponse, ReceiptUpdate, ScannedExpense
@@ -43,25 +45,27 @@ def _parse_date(value: str | None) -> date | None:
 
 
 @router.post("/scan", response_model=ReceiptScanResponse, status_code=201)
+@limiter.limit("20/minute")
 async def scan_receipt(
+    request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     if file.content_type not in ALLOWED_MIME:
-        raise HTTPException(status_code=400, detail="Sadece JPEG, PNG, WebP veya HEIC dosya yükleyebilirsiniz.")
+        raise HTTPException(status_code=400, detail="You can only upload JPEG, PNG, WebP or HEIC files.")
 
     if not await has_quota(current_user, db):
         limit = quota_limit_for(current_user)
         used = await quota_used_this_month(current_user, db)
         raise HTTPException(
             status_code=429,
-            detail=f"Aylık fiş limitiniz doldu ({used}/{limit}). Premium'a geçebilir veya gelecek ay tekrar deneyebilirsiniz.",
+            detail=f"Your monthly receipt limit is full ({used}/{limit}). You can upgrade to Premium or try again next month.",
         )
 
     image_bytes = await file.read()
     if len(image_bytes) > MAX_SIZE_MB * 1024 * 1024:
-        raise HTTPException(status_code=400, detail=f"Dosya boyutu {MAX_SIZE_MB}MB'ı geçemez.")
+        raise HTTPException(status_code=400, detail=f"File size cannot exceed {MAX_SIZE_MB}MB.")
 
     ext = (file.filename or "").rsplit(".", 1)[-1] or "jpg"
     filename = f"{uuid.uuid4()}.{ext}"
@@ -91,7 +95,7 @@ async def scan_receipt(
     db.add(receipt)
     await db.flush()
 
-    # Kategori adı → UUID eşlemesi için sistem kategorilerini yükle
+    # Load categories to map category names to UUIDs.
     cat_result = await db.execute(
         select(Category).where(
             (Category.user_id == current_user.id) | (Category.user_id.is_(None))
@@ -106,10 +110,22 @@ async def scan_receipt(
 
     if items:
         for item in items:
-            item_name = item.get("name") or "Ürün"
-            item_amount = _parse_decimal(item.get("total")) or _parse_decimal(item.get("unit_price")) or Decimal("0")
+            item_name = item.get("name") or "Item"
+            item_qty = _parse_decimal(item.get("quantity"))
+            item_unit = _parse_decimal(item.get("unit_price"))
+            item_total = _parse_decimal(item.get("total"))
+            item_amount = item_total or item_unit or Decimal("0")
             cat_name: str | None = item.get("category")
             matched_cat: Category | None = cat_map.get(cat_name.lower()) if cat_name else None
+
+            db.add(ReceiptItem(
+                receipt_id=receipt.id,
+                name=item_name,
+                quantity=item_qty,
+                unit_price=item_unit,
+                total=item_total,
+                category_id=matched_cat.id if matched_cat else None,
+            ))
 
             expense = Expense(
                 user_id=current_user.id,
@@ -131,7 +147,7 @@ async def scan_receipt(
                 category_name=matched_cat.name if matched_cat else None,
             ))
     else:
-        # Ürün listesi boşsa tek harcama oluştur
+        # If the item list is empty, create one expense.
         expense = Expense(
             user_id=current_user.id,
             receipt_id=receipt.id,
@@ -144,7 +160,7 @@ async def scan_receipt(
 
         scanned_expenses.append(ScannedExpense(
             expense_id=expense.id,
-            name=merchant or "Harcama",
+            name=merchant or "Expense",
             amount=total_amount or Decimal("0"),
             category_id=None,
             category_name=None,
@@ -186,7 +202,7 @@ async def get_receipt(
     )
     receipt = result.scalar_one_or_none()
     if not receipt:
-        raise HTTPException(status_code=404, detail="Fiş bulunamadı")
+        raise HTTPException(status_code=404, detail="Receipt not found")
     return receipt
 
 
@@ -202,7 +218,7 @@ async def update_receipt(
     )
     receipt = result.scalar_one_or_none()
     if not receipt:
-        raise HTTPException(status_code=404, detail="Fiş bulunamadı")
+        raise HTTPException(status_code=404, detail="Receipt not found")
 
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(receipt, field, value)
@@ -224,7 +240,7 @@ async def delete_receipt(
     )
     receipt = result.scalar_one_or_none()
     if not receipt:
-        raise HTTPException(status_code=404, detail="Fiş bulunamadı")
+        raise HTTPException(status_code=404, detail="Receipt not found")
 
     await db.delete(receipt)
     await db.commit()
