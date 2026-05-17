@@ -6,6 +6,13 @@
 	<string>Fiş taramak için kamera erişimi gerekli</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Galeriden fiş seçmek için fotoğraf erişimi gerekli</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>Yaklaşan abonelik ödemeleri ve bütçe uyarıları için bildirim göndermek istiyoruz</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>

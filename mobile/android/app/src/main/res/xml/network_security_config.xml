@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Default: production'da HTTPS zorunlu -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Yerel geliştirme için yerel ağ IP'lerine HTTP izin -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>      <!-- Android emulator host loopback -->
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <!-- LAN'da test ederken kendi IP'ni ekle -->
+        <domain includeSubdomains="false">192.168.1.33</domain>
+    </domain-config>
+</network-security-config>
