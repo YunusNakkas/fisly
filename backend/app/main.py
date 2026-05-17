@@ -101,7 +101,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.get("/")
 async def root():
-    return {"message": "Fisly API is running"}
+    return {"message": "Fişly API is running"}
 
 
 @app.get("/health")
