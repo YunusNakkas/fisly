@@ -7,11 +7,14 @@ import 'package:image_picker/image_picker.dart';
 import '../receipts_provider.dart';
 import '../../categories/categories_provider.dart';
 import '../../auth/profile_provider.dart';
+import '../../../shared/category_chip_picker.dart';
 import '../../../shared/category_icons.dart';
 import '../../../shared/section_label.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../l10n/localized_copy.dart';
 
 class ScanScreen extends ConsumerStatefulWidget {
   const ScanScreen({super.key});
@@ -27,19 +30,24 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   Future<void> _pickAndScan(ImageSource source) async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
-        source: source, imageQuality: 85, maxWidth: 1920);
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1920,
+    );
     if (picked == null) return;
 
-    final result =
-        await ref.read(receiptsProvider.notifier).scan(File(picked.path));
+    final result = await ref
+        .read(receiptsProvider.notifier)
+        .scan(File(picked.path));
     if (!mounted) return;
 
     if (result == null) {
       final error = ref.read(receiptsProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(error ?? 'Hata oluştu'),
-            backgroundColor: context.colors.danger),
+          content: Text(error ?? AppLocalizations.of(context).commonError),
+          backgroundColor: context.colors.danger,
+        ),
       );
       return;
     }
@@ -59,15 +67,16 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         ref.read(receiptsProvider.notifier).reset();
         context.go('/expenses');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Harcamalar kaydedildi')),
+          SnackBar(content: Text(AppLocalizations.of(context).expensesSaved)),
         );
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: const Text('Kaydetme başarısız'),
-              backgroundColor: context.colors.danger),
+            content: Text(AppLocalizations.of(context).expensesSaveFailed),
+            backgroundColor: context.colors.danger,
+          ),
         );
       }
     } finally {
@@ -77,8 +86,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
   void _editItem(ScannedItem item) {
     final nameController = TextEditingController(text: item.name);
-    final amountController =
-        TextEditingController(text: item.amount.toStringAsFixed(2));
+    final amountController = TextEditingController(
+      text: item.amount.toStringAsFixed(2),
+    );
     final formKey = GlobalKey<FormState>();
 
     showModalBottomSheet(
@@ -86,8 +96,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       isScrollControlled: true,
       backgroundColor: context.colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
@@ -102,30 +111,53 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Kalemi Düzenle', style: AppTypography.titleLg),
+              Text(
+                copyForLocale(context, en: 'Edit Item', tr: 'Kalemi Düzenle'),
+                style: AppTypography.titleLg,
+              ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: nameController,
-                decoration: const InputDecoration(labelText: 'İsim'),
+                decoration: InputDecoration(
+                  labelText: AppLocalizations.of(context).scanItemNameLabel,
+                ),
                 textCapitalization: TextCapitalization.sentences,
                 validator: (v) {
                   final t = v?.trim() ?? '';
-                  if (t.isEmpty) return 'İsim gerekli';
-                  if (t.length > 255) return 'En fazla 255 karakter';
+                  if (t.isEmpty) {
+                    return AppLocalizations.of(context).commonRequired;
+                  }
+                  if (t.length > 255) {
+                    return copyForLocale(
+                      context,
+                      en: 'Maximum 255 characters',
+                      tr: 'En fazla 255 karakter',
+                    );
+                  }
                   return null;
                 },
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: amountController,
-                decoration: const InputDecoration(labelText: 'Tutar (TL)'),
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: AppLocalizations.of(context).expensesAmount,
+                ),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 validator: (v) {
                   final d = double.tryParse(
-                      (v?.trim() ?? '').replaceAll(',', '.'));
-                  if (d == null) return 'Geçerli sayı gir';
-                  if (d <= 0) return '0\'dan büyük olmalı';
+                    (v?.trim() ?? '').replaceAll(',', '.'),
+                  );
+                  if (d == null) {
+                    return AppLocalizations.of(context).validationAmountInvalid;
+                  }
+                  if (d <= 0) {
+                    return AppLocalizations.of(
+                      context,
+                    ).validationAmountPositive;
+                  }
                   return null;
                 },
               ),
@@ -136,11 +168,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                   setState(() {
                     item.name = nameController.text.trim();
                     item.amount = double.parse(
-                        amountController.text.trim().replaceAll(',', '.'));
+                      amountController.text.trim().replaceAll(',', '.'),
+                    );
                   });
                   Navigator.pop(sheetCtx);
                 },
-                child: const Text('Kaydet'),
+                child: Text(AppLocalizations.of(context).actionSave),
               ),
             ],
           ),
@@ -156,8 +189,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     return Scaffold(
       backgroundColor: context.colors.bg,
       appBar: AppBar(
-        title: Text(scanning ? 'Fiş okunuyor…' : 'Fiş Tara',
-            style: AppTypography.titleLg),
+        title: Text(
+          scanning
+              ? AppLocalizations.of(context).scanProcessing
+              : AppLocalizations.of(context).scanTitle,
+          style: AppTypography.titleLg,
+        ),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => context.go('/expenses'),
@@ -166,20 +203,20 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       body: scanning
           ? const _ScanningView()
           : _scanResult == null
-              ? _PickerView(onPick: _pickAndScan)
-              : _ResultView(
-                  result: _scanResult!,
-                  onItemTap: _editItem,
-                  onCategoryChanged: (item, catId, catName) {
-                    setState(() {
-                      item.categoryId = catId;
-                      item.categoryName = catName;
-                    });
-                  },
-                  onRescan: () => setState(() => _scanResult = null),
-                  onSave: _saveAll,
-                  saving: _saving,
-                ),
+          ? _PickerView(onPick: _pickAndScan)
+          : _ResultView(
+              result: _scanResult!,
+              onItemTap: _editItem,
+              onCategoryChanged: (item, catId, catName) {
+                setState(() {
+                  item.categoryId = catId;
+                  item.categoryName = catName;
+                });
+              },
+              onRescan: () => setState(() => _scanResult = null),
+              onSave: _saveAll,
+              saving: _saving,
+            ),
     );
   }
 }
@@ -215,7 +252,11 @@ class _PickerView extends ConsumerWidget {
                 const _BigReceiptIllustration(),
                 const SizedBox(height: 22),
                 Text(
-                  'Fişini tara veya\ngaleriden seç',
+                  copyForLocale(
+                    context,
+                    en: 'Scan your receipt\nor pick from gallery',
+                    tr: 'Fişini tara veya\ngaleriden seç',
+                  ),
                   textAlign: TextAlign.center,
                   style: AppTypography.displaySm.copyWith(
                     fontSize: 24,
@@ -224,16 +265,23 @@ class _PickerView extends ConsumerWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Gemini yapay zekâ fişini saniyeler içinde okuyup '
-                  'ürünleri kategorilere ayıracak.',
+                  copyForLocale(
+                    context,
+                    en: 'Gemini AI will read your receipt in seconds and categorize the items.',
+                    tr: 'Gemini yapay zekâ fişini saniyeler içinde okuyup ürünleri kategorilere ayıracak.',
+                  ),
                   textAlign: TextAlign.center,
-                  style: AppTypography.bodyMd
-                      .copyWith(color: context.colors.textMid, height: 1.45),
+                  style: AppTypography.bodyMd.copyWith(
+                    color: context.colors.textMid,
+                    height: 1.45,
+                  ),
                 ),
                 const SizedBox(height: 22),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: context.colors.surfaceContainer,
                     borderRadius: BorderRadius.circular(AppRadius.md + 2),
@@ -241,11 +289,18 @@ class _PickerView extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.lock_outline,
-                          size: 14, color: context.colors.textMid),
+                      Icon(
+                        Icons.lock_outline,
+                        size: 14,
+                        color: context.colors.textMid,
+                      ),
                       const SizedBox(width: 8),
                       Text(
-                        'Fotoğrafların sadece okuma için kullanılır.',
+                        copyForLocale(
+                          context,
+                          en: 'Your photos are only used for reading receipts.',
+                          tr: 'Fotoğrafların sadece okuma için kullanılır.',
+                        ),
                         style: AppTypography.caption.copyWith(fontSize: 12),
                       ),
                     ],
@@ -262,20 +317,18 @@ class _PickerView extends ConsumerWidget {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed:
-                      atLimit ? null : () => onPick(ImageSource.camera),
+                  onPressed: atLimit ? null : () => onPick(ImageSource.camera),
                   icon: const Icon(Icons.camera_alt_outlined),
-                  label: const Text('Kameradan Çek'),
+                  label: Text(AppLocalizations.of(context).scanCameraAction),
                 ),
               ),
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed:
-                      atLimit ? null : () => onPick(ImageSource.gallery),
+                  onPressed: atLimit ? null : () => onPick(ImageSource.gallery),
                   icon: const Icon(Icons.photo_library_outlined),
-                  label: const Text('Galeriden Seç'),
+                  label: Text(AppLocalizations.of(context).scanGalleryAction),
                 ),
               ),
             ],
@@ -300,7 +353,8 @@ class _BigReceiptIllustration extends StatelessWidget {
           Positioned.fill(
             child: CustomPaint(
               painter: _DottedCirclePainter(
-                  color: context.colors.primaryContainer),
+                color: context.colors.primaryContainer,
+              ),
             ),
           ),
           // Mock receipt card
@@ -361,8 +415,11 @@ class _BigReceiptIllustration extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Icon(Icons.auto_awesome,
-                  size: 18, color: Colors.white),
+              child: const Icon(
+                Icons.auto_awesome,
+                size: 18,
+                color: Colors.white,
+              ),
             ),
           ),
         ],
@@ -406,7 +463,9 @@ class _DottedCirclePainter extends CustomPainter {
       final end = start + dashWidth / r;
       canvas.drawArc(
         Rect.fromCircle(
-            center: Offset(size.width / 2, size.height / 2), radius: r),
+          center: Offset(size.width / 2, size.height / 2),
+          radius: r,
+        ),
         start - 3.1415926 / 2,
         end - start,
         false,
@@ -455,10 +514,13 @@ class _QuotaBanner extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Bu ay tarama kotan',
-                  style: AppTypography.caption.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: context.colors.textMid)),
+              Text(
+                'Bu ay tarama kotan',
+                style: AppTypography.caption.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: context.colors.textMid,
+                ),
+              ),
               Text(
                 '$used/$limit',
                 style: TextStyle(
@@ -482,7 +544,11 @@ class _QuotaBanner extends StatelessWidget {
           if (atLimit) ...[
             const SizedBox(height: 6),
             Text(
-              'Premium\'a geçerek sınırsız tarama yapabilirsin.',
+              copyForLocale(
+                context,
+                en: 'Upgrade to Premium for unlimited scans.',
+                tr: 'Premium’a geçerek sınırsız tarama yapabilirsin.',
+              ),
               style: AppTypography.caption.copyWith(fontSize: 11),
             ),
           ],
@@ -504,12 +570,7 @@ class _ScanningViewState extends State<_ScanningView> {
   int _step = 0;
   Timer? _timer;
 
-  final _steps = const [
-    'Görüntü yükleniyor',
-    'Metin çıkarılıyor',
-    'Ürünler ayrıştırılıyor',
-    'Kategoriler atanıyor',
-  ];
+  final _steps = const ['uploading', 'extracting', 'parsing', 'assigning'];
 
   @override
   void initState() {
@@ -544,12 +605,12 @@ class _ScanningViewState extends State<_ScanningView> {
                 for (int i = 0; i < _steps.length; i++) ...[
                   if (i > 0) const SizedBox(height: 12),
                   _ProgressStep(
-                    label: _steps[i],
+                    label: _stepLabel(context, _steps[i]),
                     status: i < _step
                         ? _StepStatus.done
                         : (i == _step
-                            ? _StepStatus.active
-                            : _StepStatus.pending),
+                              ? _StepStatus.active
+                              : _StepStatus.pending),
                   ),
                 ],
               ],
@@ -559,13 +620,14 @@ class _ScanningViewState extends State<_ScanningView> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.auto_awesome,
-                  size: 12, color: context.colors.primary),
+              Icon(Icons.auto_awesome, size: 12, color: context.colors.primary),
               const SizedBox(width: 6),
               Text(
                 'Gemini Vision · ~3 sn',
-                style: AppTypography.caption
-                    .copyWith(fontSize: 12, color: context.colors.textLo),
+                style: AppTypography.caption.copyWith(
+                  fontSize: 12,
+                  color: context.colors.textLo,
+                ),
               ),
             ],
           ),
@@ -573,6 +635,30 @@ class _ScanningViewState extends State<_ScanningView> {
       ),
     );
   }
+
+  String _stepLabel(BuildContext context, String step) => switch (step) {
+    'uploading' => copyForLocale(
+      context,
+      en: 'Uploading image',
+      tr: 'Görüntü yükleniyor',
+    ),
+    'extracting' => copyForLocale(
+      context,
+      en: 'Extracting text',
+      tr: 'Metin çıkarılıyor',
+    ),
+    'parsing' => copyForLocale(
+      context,
+      en: 'Parsing items',
+      tr: 'Ürünler ayrıştırılıyor',
+    ),
+    'assigning' => copyForLocale(
+      context,
+      en: 'Assigning categories',
+      tr: 'Kategoriler atanıyor',
+    ),
+    _ => step,
+  };
 }
 
 class _ScanBeamMock extends StatefulWidget {
@@ -639,8 +725,7 @@ class _ScanBeamMockState extends State<_ScanBeamMock>
                   const SizedBox(height: 2),
                   Text(
                     '16.05.2026 18:32',
-                    style: TextStyle(
-                        fontSize: 9, color: AppColors.textLo),
+                    style: TextStyle(fontSize: 9, color: AppColors.textLo),
                   ),
                   const SizedBox(height: 8),
                   for (final w in [0.9, 0.7, 0.85, 0.6, 0.75, 0.55, 0.8])
@@ -650,11 +735,12 @@ class _ScanBeamMockState extends State<_ScanBeamMock>
                         widthFactor: w,
                         alignment: Alignment.centerLeft,
                         child: Container(
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: AppColors.outline,
-                              borderRadius: BorderRadius.circular(2),
-                            )),
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: AppColors.outline,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
                       ),
                     ),
                 ],
@@ -664,7 +750,7 @@ class _ScanBeamMockState extends State<_ScanBeamMock>
           // Beam
           AnimatedBuilder(
             animation: _ctrl,
-            builder: (_, __) {
+            builder: (_, _) {
               final top = 10 + _ctrl.value * 240;
               return Positioned(
                 left: 8,
@@ -712,7 +798,8 @@ class _ScanBeamMockState extends State<_ScanBeamMock>
             decoration: BoxDecoration(
               border: Border(top: side, left: side),
               borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(8)),
+                topLeft: Radius.circular(8),
+              ),
             ),
           ),
         ),
@@ -727,7 +814,8 @@ class _ScanBeamMockState extends State<_ScanBeamMock>
             decoration: BoxDecoration(
               border: Border(top: side, right: side),
               borderRadius: const BorderRadius.only(
-                  topRight: Radius.circular(8)),
+                topRight: Radius.circular(8),
+              ),
             ),
           ),
         ),
@@ -742,7 +830,8 @@ class _ScanBeamMockState extends State<_ScanBeamMock>
             decoration: BoxDecoration(
               border: Border(bottom: side, left: side),
               borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(8)),
+                bottomLeft: Radius.circular(8),
+              ),
             ),
           ),
         ),
@@ -757,7 +846,8 @@ class _ScanBeamMockState extends State<_ScanBeamMock>
             decoration: BoxDecoration(
               border: Border(bottom: side, right: side),
               borderRadius: const BorderRadius.only(
-                  bottomRight: Radius.circular(8)),
+                bottomRight: Radius.circular(8),
+              ),
             ),
           ),
         ),
@@ -805,17 +895,17 @@ class _ProgressStep extends StatelessWidget {
           child: status == _StepStatus.done
               ? const Icon(Icons.check, size: 11, color: Colors.white)
               : status == _StepStatus.active
-                  ? Center(
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                        ),
-                      ),
-                    )
-                  : null,
+              ? Center(
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                    ),
+                  ),
+                )
+              : null,
         ),
         const SizedBox(width: 10),
         Text(
@@ -859,8 +949,7 @@ class _ResultView extends ConsumerWidget {
       for (final c in categories) c.id: c,
     };
 
-    final total =
-        result.expenses.fold<double>(0, (sum, e) => sum + e.amount);
+    final total = result.expenses.fold<double>(0, (sum, e) => sum + e.amount);
 
     return Stack(
       children: [
@@ -868,12 +957,20 @@ class _ResultView extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
           children: [
             _MerchantHeader(
-              merchant: result.merchant ?? 'Bilinmiyor',
+              merchant:
+                  result.merchant ??
+                  copyForLocale(context, en: 'Unknown', tr: 'Bilinmiyor'),
               itemCount: result.expenses.length,
               date: result.receiptDate,
             ),
             const SizedBox(height: 16),
-            const SectionLabel('Tespit edilen ürünler'),
+            SectionLabel(
+              copyForLocale(
+                context,
+                en: 'Detected items',
+                tr: 'Tespit edilen ürünler',
+              ),
+            ),
             _ItemsCard(
               items: result.expenses,
               categories: categories,
@@ -911,7 +1008,9 @@ class _ResultView extends ConsumerWidget {
                   OutlinedButton.icon(
                     onPressed: onRescan,
                     icon: const Icon(Icons.replay, size: 18),
-                    label: const Text('Yeniden'),
+                    label: Text(
+                      copyForLocale(context, en: 'Rescan', tr: 'Yeniden'),
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -922,10 +1021,12 @@ class _ResultView extends ConsumerWidget {
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
                           : const Icon(Icons.check, size: 18),
-                      label: const Text('Tümünü Kaydet'),
+                      label: Text(AppLocalizations.of(context).scanSaveAll),
                     ),
                   ),
                 ],
@@ -966,23 +1067,34 @@ class _MerchantHeader extends StatelessWidget {
               color: AppColors.primary.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(AppRadius.md + 2),
             ),
-            child: const Icon(Icons.receipt_long,
-                color: AppColors.primary, size: 22),
+            child: const Icon(
+              Icons.receipt_long,
+              color: AppColors.primary,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(merchant,
-                    style: AppTypography.titleMd
-                        .copyWith(fontSize: 17, fontWeight: FontWeight.w700),
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  merchant,
+                  style: AppTypography.titleMd.copyWith(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 2),
                 Text(
                   [
-                    if (date != null) _displayDate(date!),
-                    '$itemCount ürün',
+                    if (date != null) _displayDate(context, date!),
+                    copyForLocale(
+                      context,
+                      en: '$itemCount items',
+                      tr: '$itemCount ürün',
+                    ),
                   ].join(' · '),
                   style: AppTypography.caption,
                 ),
@@ -990,8 +1102,7 @@ class _MerchantHeader extends StatelessWidget {
             ),
           ),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: AppColors.primaryContainer,
               borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -999,8 +1110,11 @@ class _MerchantHeader extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.auto_awesome,
-                    size: 11, color: AppColors.onPrimaryContainer),
+                const Icon(
+                  Icons.auto_awesome,
+                  size: 11,
+                  color: AppColors.onPrimaryContainer,
+                ),
                 const SizedBox(width: 3),
                 Text(
                   'AI',
@@ -1018,14 +1132,10 @@ class _MerchantHeader extends StatelessWidget {
     );
   }
 
-  String _displayDate(String iso) {
+  String _displayDate(BuildContext context, String iso) {
     try {
       final d = DateTime.parse(iso);
-      final months = [
-        'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-        'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
-      ];
-      return '${d.day.toString().padLeft(2, '0')} ${months[d.month - 1]} ${d.year}';
+      return '${d.day.toString().padLeft(2, '0')} ${monthName(context, d.month)} ${d.year}';
     } catch (_) {
       return iso;
     }
@@ -1059,8 +1169,7 @@ class _ItemsCard extends StatelessWidget {
         child: Column(
           children: [
             for (int i = 0; i < items.length; i++) ...[
-              if (i > 0)
-                const Divider(height: 1, color: AppColors.outlineSoft),
+              if (i > 0) const Divider(height: 1, color: AppColors.outlineSoft),
               _ItemRow(
                 item: items[i],
                 category: items[i].categoryId != null
@@ -1118,10 +1227,14 @@ class _ItemRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.name,
-                      style: AppTypography.bodyMd.copyWith(
-                          fontWeight: FontWeight.w600, fontSize: 14),
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    item.name,
+                    style: AppTypography.bodyMd.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 4),
                   _CategoryChip(
                     selectedCategory: category,
@@ -1134,8 +1247,7 @@ class _ItemRow extends StatelessWidget {
             const SizedBox(width: 8),
             Text(_fmtTRY(item.amount), style: AppTypography.amountLg),
             const SizedBox(width: 6),
-            const Icon(Icons.edit_outlined,
-                size: 16, color: AppColors.textLo),
+            const Icon(Icons.edit_outlined, size: 16, color: AppColors.textLo),
           ],
         ),
       ),
@@ -1154,29 +1266,76 @@ class _CategoryChip extends StatelessWidget {
     required this.onChanged,
   });
 
+  void _showPicker(BuildContext context) {
+    String? selectedId = selectedCategory?.id;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          24,
+          24,
+          24,
+          MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: StatefulBuilder(
+          builder: (ctx, setState) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      AppLocalizations.of(context).scanCategoryPickTitle,
+                      style: AppTypography.titleLg,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              CategoryChipPicker(
+                categories: categories,
+                selectedId: selectedId,
+                onChanged: (id) {
+                  setState(() => selectedId = id);
+                  if (id == null) {
+                    onChanged(null, null);
+                  } else {
+                    final c = categories.firstWhere((c) => c.id == id);
+                    onChanged(c.id, c.name);
+                  }
+                  Navigator.pop(ctx);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = selectedCategory != null
         ? colorFromHex(selectedCategory!.color)
         : AppColors.textLo;
-    final label = selectedCategory?.name ?? 'Kategori seç';
+    final label = selectedCategory != null
+        ? localizedCategoryName(context, selectedCategory!.name)
+        : AppLocalizations.of(context).scanCategoryPickTitle;
 
-    return PopupMenuButton<String?>(
-      tooltip: 'Kategori seç',
-      onSelected: (id) {
-        if (id == null) {
-          onChanged(null, null);
-        } else {
-          final c = categories.firstWhere((c) => c.id == id);
-          onChanged(c.id, c.name);
-        }
-      },
-      itemBuilder: (_) => [
-        const PopupMenuItem(
-            value: null, child: Text('Kategori seç')),
-        ...categories.map((c) =>
-            PopupMenuItem<String?>(value: c.id, child: Text(c.name))),
-      ],
+    return GestureDetector(
+      onTap: () => _showPicker(context),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
@@ -1219,14 +1378,14 @@ class _TotalCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
-            child: Text('Toplam',
-                style: AppTypography.titleMd
-                    .copyWith(fontWeight: FontWeight.w700)),
+            child: Text(
+              'Toplam',
+              style: AppTypography.titleMd.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
-          Text(
-            _fmtTRY(total),
-            style: AppTypography.displaySm,
-          ),
+          Text(_fmtTRY(total), style: AppTypography.displaySm),
         ],
       ),
     );
