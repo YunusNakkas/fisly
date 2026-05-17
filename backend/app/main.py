@@ -5,10 +5,30 @@ from logging.handlers import RotatingFileHandler
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from app.core.limiter import limiter
+from app.config import settings
 from app.routers import auth, expenses, categories, feedback, reports, subscriptions, receipts, admin, budgets
-from app.models import user, category, expense, feedback as _feedback_model, subscription, receipt as _receipt_model, budget as _budget_model  # SQLAlchemy metadata için
+from app.models import (
+    user, category, expense, feedback as _feedback_model, subscription,
+    receipt as _receipt_model, budget as _budget_model,
+    password_reset as _password_reset_model,
+    revoked_token as _revoked_token_model,
+    receipt_item as _receipt_item_model,
+)  # For SQLAlchemy metadata
 from fastapi.responses import JSONResponse
 import time
+
+# Initialize Sentry when a DSN is configured.
+if settings.SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENV,
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+    )
 
 os.makedirs("logs", exist_ok=True)
 
@@ -36,10 +56,12 @@ class UnicodeJSONResponse(JSONResponse):
 
 
 app = FastAPI(title="Fişly API", version="0.1.0", default_response_class=UnicodeJSONResponse)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -79,7 +101,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.get("/")
 async def root():
-    return {"message": "Fişly API çalışıyor"}
+    return {"message": "Fisly API is running"}
 
 
 @app.get("/health")

@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
 from passlib.context import CryptContext
@@ -16,12 +17,20 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def create_access_token(user_id: str) -> str:
     expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    return jwt.encode({"sub": user_id, "exp": expire, "type": "access"}, settings.SECRET_KEY, algorithm="HS256")
+    return jwt.encode(
+        {"sub": user_id, "exp": expire, "type": "access", "jti": str(uuid.uuid4())},
+        settings.SECRET_KEY,
+        algorithm="HS256",
+    )
 
 
 def create_refresh_token(user_id: str) -> str:
     expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    return jwt.encode({"sub": user_id, "exp": expire, "type": "refresh"}, settings.SECRET_KEY, algorithm="HS256")
+    return jwt.encode(
+        {"sub": user_id, "exp": expire, "type": "refresh", "jti": str(uuid.uuid4())},
+        settings.SECRET_KEY,
+        algorithm="HS256",
+    )
 
 
 def decode_token(token: str) -> dict:

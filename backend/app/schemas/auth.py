@@ -29,6 +29,15 @@ class UpdateProfileRequest(BaseModel):
     new_password: str | None = None
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
 class UserResponse(BaseModel):
     id: UUID
     email: str
