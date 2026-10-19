@@ -72,8 +72,6 @@ alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
-API dokümantasyonu: <http://localhost:8000/docs>
-
 ### Mobil
 
 ```bash

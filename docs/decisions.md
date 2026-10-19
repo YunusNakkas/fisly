@@ -6,9 +6,6 @@ Her ADR: bağlam → karar → gerekçe → sonuçlar.
 
 ## ADR-001: Backend Framework — FastAPI
 
-**Tarih:** 2026-05-07
-**Durum:** Kabul edildi
-
 ### Bağlam
 Mobil uygulama için REST API gerekiyor. Geliştirici Python biliyor, ekstra dil öğrenme maliyeti istenmiyor.
 
@@ -28,9 +25,6 @@ Backend olarak **FastAPI** kullanılacak.
 ---
 
 ## ADR-002: Mobil Framework — Flutter
-
-**Tarih:** 2026-05-07
-**Durum:** Kabul edildi
 
 ### Bağlam
 iOS ve Android'i desteklemek gerekiyor. Geliştirici ne Flutter ne React Native biliyor; öğrenme maliyeti kaçınılmaz.
@@ -53,9 +47,6 @@ Mobil için **Flutter** kullanılacak.
 
 ## ADR-003: Veritabanı — PostgreSQL
 
-**Tarih:** 2026-05-07
-**Durum:** Kabul edildi
-
 ### Bağlam
 Kullanıcı, harcama, kategori ve abonelik verisi ilişkisel. Finansal verinin tutarlılığı kritik.
 
@@ -76,9 +67,6 @@ Kullanıcı, harcama, kategori ve abonelik verisi ilişkisel. Finansal verinin t
 ---
 
 ## ADR-004: Fiş OCR — Gemini Vision API
-
-**Tarih:** 2026-05-07
-**Durum:** Kabul edildi
 
 ### Bağlam
 Türkçe fişlerden tarih, market adı, ürün listesi ve toplam tutarın otomatik çekilmesi gerekiyor. Farklı font, kötü ışık ve buruşuk kağıt gibi varyasyonlar var.
@@ -102,9 +90,6 @@ OCR için **Gemini Vision API** kullanılacak.
 
 ## ADR-005: Kimlik Doğrulama — JWT (Access + Refresh Token)
 
-**Tarih:** 2026-05-07
-**Durum:** Kabul edildi
-
 ### Bağlam
 Mobil uygulama için stateless auth gerekiyor. Kullanıcı her seferinde login olmak istemiyor.
 
@@ -127,9 +112,6 @@ Mobil uygulama için stateless auth gerekiyor. Kullanıcı her seferinde login o
 
 ## ADR-006: Fiş Görsel Depolama — Cloud Object Storage
 
-**Tarih:** 2026-05-07
-**Durum:** Kabul edildi
-
 ### Bağlam
 Kullanıcılar fiş fotoğrafı yükleyecek. Bu görsellerin uzun vadeli saklanması ve cihaz değişiminde erişilebilir olması gerekiyor.
 
@@ -151,9 +133,6 @@ Fiş görselleri **S3-uyumlu object storage**'a yüklenecek (Cloudflare R2 veya 
 
 ## ADR-007: Fiş İşleme Yeri — Server-side
 
-**Tarih:** 2026-05-07
-**Durum:** Kabul edildi
-
 ### Bağlam
 Fiş görseli Gemini Vision'a gönderilebilir. Bu işlem client'ta (mobilde) veya server'da yapılabilir.
 
@@ -172,9 +151,6 @@ Gemini API çağrısı **backend'de** yapılacak.
 ---
 
 ## ADR-008: Connectivity Stratejisi — Online-first (MVP)
-
-**Tarih:** 2026-05-07
-**Durum:** Kabul edildi
 
 ### Bağlam
 Offline-first mimarisi (yerel SQLite + sync) kullanıcı deneyimini artırır ama CRDT / conflict resolution karmaşıklığı MVP süresini ciddi uzatır.
