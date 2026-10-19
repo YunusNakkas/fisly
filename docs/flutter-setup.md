@@ -86,7 +86,7 @@ flutter doctor
 ## 7. Flutter Projesi Oluştur
 
 ```bash
-cd /Users/yunusemrenakkas/Desktop/fişly
+cd ~/Projects/fisly
 flutter create mobile --org com.fisly --platforms ios,android
 cd mobile
 flutter run
