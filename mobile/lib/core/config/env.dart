@@ -17,4 +17,14 @@ class Env {
     'API_BASE_URL',
     defaultValue: 'http://localhost:8000/api/v1',
   );
+
+  // RevenueCat public SDK anahtarları (platforma özel). Boşsa IAP devre dışı.
+  static const revenueCatApiKeyApple = String.fromEnvironment(
+    'REVENUECAT_API_KEY_APPLE',
+    defaultValue: '',
+  );
+  static const revenueCatApiKeyGoogle = String.fromEnvironment(
+    'REVENUECAT_API_KEY_GOOGLE',
+    defaultValue: '',
+  );
 }

@@ -13,6 +13,7 @@ import '../../features/expenses/presentation/expenses_screen.dart';
 import '../../features/reports/presentation/reports_screen.dart';
 import '../../features/subscriptions/presentation/subscriptions_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/premium/presentation/paywall_screen.dart';
 import '../../features/settings/presentation/profile_screen.dart';
 import '../../features/settings/presentation/feedback_screen.dart';
 import '../../features/settings/presentation/password_change_screen.dart';
@@ -89,6 +90,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
       GoRoute(path: '/scan', builder: (_, _) => const ScanScreen()),
+      GoRoute(path: '/premium', builder: (_, _) => const PaywallScreen()),
       ShellRoute(
         builder: (_, state, child) =>
             MainShell(location: state.matchedLocation, child: child),

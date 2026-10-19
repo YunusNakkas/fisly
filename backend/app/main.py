@@ -9,7 +9,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.core.limiter import limiter
 from app.config import settings
-from app.routers import auth, expenses, categories, feedback, reports, subscriptions, receipts, admin, budgets
+from app.routers import auth, expenses, categories, feedback, reports, subscriptions, receipts, admin, budgets, billing
 from app.models import (
     user, category, expense, feedback as _feedback_model, subscription,
     receipt as _receipt_model, budget as _budget_model,
@@ -42,8 +42,13 @@ _file_handler = RotatingFileHandler(
 )
 _file_handler.setFormatter(_fmt)
 
+_console_handler = logging.StreamHandler()
+_console_handler.setFormatter(_fmt)
+
 logging.root.setLevel(logging.INFO)
 logging.root.addHandler(_file_handler)
+# stdout'a da yaz — Fly/container log toplama bunu yakalar.
+logging.root.addHandler(_console_handler)
 
 logger = logging.getLogger("fisly")
 
@@ -94,9 +99,13 @@ app.include_router(subscriptions.router, prefix="/api/v1")
 app.include_router(receipts.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(budgets.router, prefix="/api/v1")
+app.include_router(billing.router, prefix="/api/v1")
 
-os.makedirs("uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+# Fiş görselleri yalnızca local storage backend'de statik servis edilir.
+# Production'da (STORAGE_BACKEND=r2) görseller R2'den presigned URL ile gelir.
+if settings.STORAGE_BACKEND == "local":
+    os.makedirs("uploads", exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
 @app.get("/")

@@ -66,6 +66,31 @@ async def test_forgot_password_does_not_leak_existence(client):
 
 
 @pytest.mark.asyncio
+async def test_delete_account(client):
+    r = await client.post("/api/v1/auth/register", json={
+        "email": "del@fisly.app", "password": "secret123",
+    })
+    token = r.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Hesabı sil
+    r2 = await client.delete("/api/v1/auth/me", headers=headers)
+    assert r2.status_code == 204, r2.text
+
+    # Aynı email ile tekrar kayıt mümkün olmalı (kullanıcı gerçekten silindi)
+    r3 = await client.post("/api/v1/auth/register", json={
+        "email": "del@fisly.app", "password": "secret123",
+    })
+    assert r3.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_delete_account_requires_auth(client):
+    r = await client.delete("/api/v1/auth/me")
+    assert r.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
 async def test_refresh_token_rotation(client):
     r = await client.post("/api/v1/auth/register", json={
         "email": "rot@fisly.app", "password": "secret123",

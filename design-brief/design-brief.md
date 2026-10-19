@@ -142,20 +142,13 @@ Flutter mobil (iOS + Android). Material 3 tabanı. Tasarım Material'dan çok sa
 
 [Aşağıdan birini seç veya kendin yaz:]
 
-**Seçenek A — Sade & Profesyonel:**
-- Beyaz/açık gri zemin, accent mor (#6366f1)
-- Card-based, hafif gölge, yuvarlak köşeler (12-16)
-- Sans-serif (Inter/SF Pro)
+
 
 **Seçenek B — Modern Finans (Revolut/Monzo tarzı):**
 - Koyu kart + açık zemin kontrastı
 - Renkli kategori chip'leri öne çıkar
 - Büyük tipografi, hava bol
 
-**Seçenek C — Sıcak & Yerel:**
-- Türk pazarına özel — sıcak tonlar (turuncu/sarı accent)
-- Yuvarlak köşeler, friendly ikonografya
-- Empty state illüstrasyonları el çizimi havası
 
 ---
 

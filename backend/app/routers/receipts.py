@@ -1,6 +1,5 @@
+import logging
 import uuid
-import os
-import aiofiles
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
@@ -18,12 +17,20 @@ from app.models.category import Category
 from app.schemas.receipt import ReceiptScanResponse, ReceiptResponse, ReceiptUpdate, ScannedExpense
 from app.services import ocr_service
 from app.services.quota_service import has_quota, quota_limit_for, quota_used_this_month
+from app.services.storage_service import get_storage
 
 router = APIRouter(prefix="/receipts", tags=["receipts"])
+logger = logging.getLogger("fisly")
 
-UPLOAD_DIR = "uploads"
 ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp", "image/heic"}
 MAX_SIZE_MB = 5
+
+
+async def _to_response(receipt: Receipt) -> ReceiptResponse:
+    """Receipt ORM -> response, image_url'i süreli presigned URL'e çevirerek."""
+    resp = ReceiptResponse.model_validate(receipt)
+    resp.image_url = await get_storage().presigned_url(receipt.image_url)
+    return resp
 
 
 def _parse_decimal(value) -> Decimal | None:
@@ -67,14 +74,12 @@ async def scan_receipt(
     if len(image_bytes) > MAX_SIZE_MB * 1024 * 1024:
         raise HTTPException(status_code=400, detail=f"File size cannot exceed {MAX_SIZE_MB}MB.")
 
+    content_type = file.content_type or "image/jpeg"
     ext = (file.filename or "").rsplit(".", 1)[-1] or "jpg"
-    filename = f"{uuid.uuid4()}.{ext}"
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    filepath = os.path.join(UPLOAD_DIR, filename)
-    async with aiofiles.open(filepath, "wb") as f:
-        await f.write(image_bytes)
+    storage_key = f"receipts/{current_user.id}/{uuid.uuid4()}.{ext}"
+    await get_storage().upload(storage_key, image_bytes, content_type)
 
-    ocr_data = await ocr_service.parse_receipt(image_bytes, file.content_type or "image/jpeg")
+    ocr_data = await ocr_service.parse_receipt(image_bytes, content_type)
 
     merchant = ocr_data.get("merchant")
     total_amount = _parse_decimal(ocr_data.get("total_amount"))
@@ -85,7 +90,7 @@ async def scan_receipt(
 
     receipt = Receipt(
         user_id=current_user.id,
-        image_url=f"/uploads/{filename}",
+        image_url=storage_key,
         raw_ocr_data=ocr_data,
         merchant=merchant,
         total_amount=total_amount,
@@ -188,7 +193,7 @@ async def list_receipts(
         .where(Receipt.user_id == current_user.id)
         .order_by(Receipt.created_at.desc())
     )
-    return result.scalars().all()
+    return [await _to_response(r) for r in result.scalars().all()]
 
 
 @router.get("/{receipt_id}", response_model=ReceiptResponse)
@@ -203,7 +208,7 @@ async def get_receipt(
     receipt = result.scalar_one_or_none()
     if not receipt:
         raise HTTPException(status_code=404, detail="Receipt not found")
-    return receipt
+    return await _to_response(receipt)
 
 
 @router.patch("/{receipt_id}", response_model=ReceiptResponse)
@@ -226,7 +231,7 @@ async def update_receipt(
 
     await db.commit()
     await db.refresh(receipt)
-    return receipt
+    return await _to_response(receipt)
 
 
 @router.delete("/{receipt_id}", status_code=204)
@@ -241,6 +246,11 @@ async def delete_receipt(
     receipt = result.scalar_one_or_none()
     if not receipt:
         raise HTTPException(status_code=404, detail="Receipt not found")
+
+    try:
+        await get_storage().delete(receipt.image_url)
+    except Exception:
+        logger.exception("Failed to delete receipt object from storage: %s", receipt.image_url)
 
     await db.delete(receipt)
     await db.commit()

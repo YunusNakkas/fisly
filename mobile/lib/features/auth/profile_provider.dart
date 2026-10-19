@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 
@@ -5,6 +7,7 @@ class Profile {
   final String id;
   final String email;
   final String? fullName;
+  final String? avatarUrl;
   final String plan;
   final int quotaUsed;
   final int? quotaLimit;
@@ -13,6 +16,7 @@ class Profile {
     required this.id,
     required this.email,
     required this.fullName,
+    required this.avatarUrl,
     required this.plan,
     required this.quotaUsed,
     required this.quotaLimit,
@@ -24,6 +28,7 @@ class Profile {
     id: j['id'] as String,
     email: j['email'] as String,
     fullName: j['full_name'] as String?,
+    avatarUrl: j['avatar_url'] as String?,
     plan: j['plan'] as String,
     quotaUsed: (j['quota_used'] as num?)?.toInt() ?? 0,
     quotaLimit: (j['quota_limit'] as num?)?.toInt(),
@@ -52,6 +57,13 @@ class ProfileUpdater {
       '/auth/me',
       data: {'current_password': currentPassword, 'new_password': newPassword},
     );
+  }
+
+  Future<void> uploadAvatar(File file) async {
+    final form = FormData.fromMap({
+      'file': await MultipartFile.fromFile(file.path),
+    });
+    await _api.dio.post('/auth/me/avatar', data: form);
   }
 }
 

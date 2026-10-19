@@ -1,4 +1,5 @@
 from uuid import UUID
+from datetime import datetime
 from pydantic import BaseModel, EmailStr
 
 
@@ -42,7 +43,9 @@ class UserResponse(BaseModel):
     id: UUID
     email: str
     full_name: str | None
+    avatar_url: str | None = None
     plan: str
+    premium_expires_at: datetime | None = None
     quota_used: int = 0
     quota_limit: int | None = None
 

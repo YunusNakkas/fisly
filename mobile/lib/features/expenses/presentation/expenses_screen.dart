@@ -6,6 +6,7 @@ import '../../categories/categories_provider.dart';
 import '../../subscriptions/subscriptions_provider.dart';
 import '../../budgets/budgets_provider.dart';
 import '../../../shared/category_icons.dart';
+import '../../../shared/currency_input_formatter.dart';
 import '../../../shared/category_avatar.dart';
 import '../../../shared/category_chip_picker.dart';
 import '../../../l10n/app_localizations.dart';
@@ -403,7 +404,11 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   }) {
     final isEdit = existing != null;
     final amountController = TextEditingController(
-      text: isEdit ? existing['amount'].toString() : '',
+      text: isEdit
+          ? formatAmountForInput(
+              double.tryParse(existing['amount'].toString()) ?? 0,
+            )
+          : '',
     );
     final merchantController = TextEditingController(
       text: isEdit ? (existing['merchant'] ?? '') : '',
@@ -578,6 +583,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
+                    inputFormatters: const [CurrencyInputFormatter()],
                     validator: (v) {
                       final s = v?.trim() ?? '';
                       if (s.isEmpty) {

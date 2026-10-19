@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../auth/auth_provider.dart';
 import '../../auth/profile_provider.dart';
+import '../../premium/premium_provider.dart';
 import '../../../shared/section_label.dart';
 import '../../../core/locale/locale_provider.dart';
+import '../../../core/legal/legal.dart';
+import '../../../core/api/media_url.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_theme.dart';
@@ -19,6 +22,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     final locale = ref.watch(localeProvider);
+    final isPremium = ref.watch(premiumProvider);
     final t = AppLocalizations.of(context);
 
     return Scaffold(
@@ -28,7 +32,10 @@ class SettingsScreen extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
         children: [
           const _ProfileCard(),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
+          if (!isPremium)
+            _PremiumUpsellCard(onTap: () => context.push('/premium')),
+          const SizedBox(height: 6),
           SectionLabel(t.settingsAppearance),
           _ThemeModeCard(
             mode: themeMode,
@@ -88,7 +95,33 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 18),
+          SectionLabel(copyForLocale(context, en: 'Legal', tr: 'Yasal')),
+          _SettingsCard(
+            rows: [
+              _SettingsRow(
+                icon: Icons.privacy_tip_outlined,
+                title: copyForLocale(
+                  context,
+                  en: 'Privacy Policy',
+                  tr: 'Gizlilik Politikası',
+                ),
+                onTap: () => openLegalUrl(kPrivacyUrl),
+              ),
+              _SettingsRow(
+                icon: Icons.shield_outlined,
+                title: copyForLocale(
+                  context,
+                  en: 'Data Protection (KVKK)',
+                  tr: 'KVKK Aydınlatma Metni',
+                ),
+                onTap: () => openLegalUrl(kKvkkUrl),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
           _LogoutCard(onTap: () => _confirmLogout(context, ref)),
+          const SizedBox(height: 10),
+          _DeleteAccountCard(onTap: () => _confirmDeleteAccount(context, ref)),
           const SizedBox(height: 20),
           const _VersionFooter(),
         ],
@@ -121,6 +154,58 @@ class SettingsScreen extends ConsumerWidget {
     if (ok == true) {
       await ref.read(authProvider.notifier).logout();
       if (context.mounted) context.go('/login');
+    }
+  }
+
+  Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Text(
+          copyForLocale(dialogCtx, en: 'Delete account', tr: 'Hesabı sil'),
+        ),
+        content: Text(
+          copyForLocale(
+            dialogCtx,
+            en: 'Your account and all data (receipts, expenses, subscriptions, '
+                'budgets) will be permanently deleted. This cannot be undone.',
+            tr: 'Hesabın ve tüm verilerin (fişler, harcamalar, abonelikler, '
+                'bütçeler) kalıcı olarak silinecek. Bu işlem geri alınamaz.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: Text(copyForLocale(dialogCtx, en: 'Cancel', tr: 'Vazgeç')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: Text(
+              copyForLocale(dialogCtx, en: 'Delete', tr: 'Sil'),
+              style: TextStyle(color: context.colors.danger),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(authProvider.notifier).deleteAccount();
+      if (context.mounted) context.go('/login');
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              copyForLocale(
+                context,
+                en: 'Could not delete account. Please try again.',
+                tr: 'Hesap silinemedi. Lütfen tekrar dene.',
+              ),
+            ),
+          ),
+        );
+      }
     }
   }
 }
@@ -286,17 +371,25 @@ class _ProfileCard extends ConsumerWidget {
                     end: Alignment.bottomRight,
                     colors: [context.colors.primary, context.colors.primaryDim],
                   ),
+                  image: (p.avatarUrl != null && p.avatarUrl!.isNotEmpty)
+                      ? DecorationImage(
+                          image: NetworkImage(absoluteMediaUrl(p.avatarUrl)!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
                 ),
-                child: Center(
-                  child: Text(
-                    initial,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
+                child: (p.avatarUrl == null || p.avatarUrl!.isEmpty)
+                    ? Center(
+                        child: Text(
+                          initial,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      )
+                    : null,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -459,6 +552,70 @@ class _QuotaPill extends StatelessWidget {
   }
 }
 
+// ─── Premium upsell ────────────────────────────────────────────────
+class _PremiumUpsellCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _PremiumUpsellCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.lg + 2),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.lg + 2),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [context.colors.primary, context.colors.primaryDim],
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.auto_awesome, color: Colors.white, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      copyForLocale(
+                        context,
+                        en: 'Upgrade to Premium',
+                        tr: 'Premium’a geç',
+                      ),
+                      style: AppTypography.titleMd.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      copyForLocale(
+                        context,
+                        en: 'Unlimited scans, reports and more',
+                        tr: 'Sınırsız tarama, raporlar ve dahası',
+                      ),
+                      style: AppTypography.caption.copyWith(
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.white),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Settings card / row ───────────────────────────────────────────
 class _SettingsCard extends StatelessWidget {
   final List<_SettingsRow> rows;
@@ -578,6 +735,56 @@ class _LogoutCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 Text(
                   AppLocalizations.of(context).settingsLogoutAction,
+                  style: AppTypography.bodyLg.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: context.colors.danger,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Delete account card ───────────────────────────────────────────
+class _DeleteAccountCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _DeleteAccountCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: context.colors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg + 2),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.lg + 2),
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: context.colors.danger.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  child: Icon(
+                    Icons.delete_forever_outlined,
+                    size: 18,
+                    color: context.colors.danger,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  copyForLocale(context, en: 'Delete account', tr: 'Hesabı sil'),
                   style: AppTypography.bodyLg.copyWith(
                     fontWeight: FontWeight.w600,
                     color: context.colors.danger,

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/storage/token_storage.dart';
+import '../../core/billing/billing_service.dart';
 
 enum AuthStatus { unknown, authenticated, anonymous }
 
@@ -29,7 +30,8 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
       return;
     }
     try {
-      await _api.dio.get('/auth/me');
+      final res = await _api.dio.get('/auth/me');
+      await billingLogIn(res.data['id'] as String);
       if (mounted) state = AuthStatus.authenticated;
     } catch (_) {
       // If a 401 occurs, the interceptor already tried refresh. On failure,
@@ -47,6 +49,7 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
       res.data['access_token'],
       res.data['refresh_token'],
     );
+    await _syncBilling();
     state = AuthStatus.authenticated;
   }
 
@@ -59,7 +62,16 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
       res.data['access_token'],
       res.data['refresh_token'],
     );
+    await _syncBilling();
     state = AuthStatus.authenticated;
+  }
+
+  /// Backend kullanıcı UUID'sini RevenueCat'e bağlar (webhook eşleşmesi için).
+  Future<void> _syncBilling() async {
+    try {
+      final res = await _api.dio.get('/auth/me');
+      await billingLogIn(res.data['id'] as String);
+    } catch (_) {}
   }
 
   Future<void> logout() async {
@@ -68,6 +80,7 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
     } catch (_) {
       // Perform local logout even when the server is unreachable.
     }
+    await billingLogOut();
     await _storage.clear();
     state = AuthStatus.anonymous;
   }
@@ -83,8 +96,17 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
     );
   }
 
+  /// Hesabı ve tüm verileri kalıcı olarak siler (KVKK / App Store şartı).
+  Future<void> deleteAccount() async {
+    await _api.dio.delete('/auth/me');
+    await billingLogOut();
+    await _storage.clear();
+    state = AuthStatus.anonymous;
+  }
+
   /// Called by the interceptor after a 401 + failed refresh.
   Future<void> forceLogout() async {
+    await billingLogOut();
     await _storage.clear();
     if (mounted) state = AuthStatus.anonymous;
   }

@@ -1,0 +1,36 @@
+# Fişly backend — Fly.io config
+# Kurulum: fly launch --no-deploy (uygulama adı/region onayla), sonra secrets + deploy.
+app = "fisly-backend"
+primary_region = "fra"  # Frankfurt — TR'ye en yakın AB region
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Her deploy'da migration'ları çalıştır (uygulama başlamadan önce).
+[deploy]
+  release_command = "alembic upgrade head"
+
+# Secret OLMAYAN env'ler. Secret'lar `fly secrets set` ile (aşağıdaki dokümana bak).
+[env]
+  ENV = "production"
+  STORAGE_BACKEND = "r2"
+  R2_BUCKET = "fisly-receipts"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1  # cold start'tan kaçın (fiş tarama gecikmesin)
+
+  [http_service.checks]
+    [[http_service.checks.http]]
+      method = "GET"
+      path = "/health"
+      interval = "15s"
+      timeout = "5s"
+      grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"  # Gemini çağrısı + 5MB görsel için yeterli

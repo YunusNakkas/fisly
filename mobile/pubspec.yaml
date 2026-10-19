@@ -46,6 +46,8 @@ dependencies:
   flutter_local_notifications: ^21.0.0
   timezone: ^0.11.0
   sentry_flutter: ^8.13.0
+  url_launcher: ^6.3.1
+  purchases_flutter: ^8.4.0
   flutter_localizations:
     sdk: flutter
 
@@ -59,6 +61,19 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# Uygulama ikonu üretimi:
+#   1. 1024x1024 px, şeffaf olmayan kaynak ikonu assets/icon/app_icon.png'ye koy.
+#   2. flutter pub run flutter_launcher_icons
+# iOS şeffaflık kabul etmez; adaptive_icon Android için arka plan/ön plan üretir.
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  android: "ic_launcher"
+  ios: true
+  remove_alpha_ios: true
+  adaptive_icon_background: "#4F46E5"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

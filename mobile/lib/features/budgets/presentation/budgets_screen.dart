@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../budgets_provider.dart';
+import '../../../shared/currency_input_formatter.dart';
 import '../../categories/categories_provider.dart';
 import '../../../shared/category_avatar.dart';
 import '../../../shared/category_chip_picker.dart';
@@ -227,7 +228,7 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
 
   void _showEditSheet(BuildContext context, Budget b) {
     final amountController = TextEditingController(
-      text: b.amount.toStringAsFixed(2),
+      text: formatAmountForInput(b.amount),
     );
     final messenger = ScaffoldMessenger.of(context);
     final danger = context.colors.danger;
@@ -297,6 +298,7 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
+                    inputFormatters: const [CurrencyInputFormatter()],
                     validator: (v) {
                       final d = double.tryParse(v?.replaceAll(',', '.') ?? '');
                       if (d == null || d <= 0) {
@@ -426,6 +428,7 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
+                    inputFormatters: const [CurrencyInputFormatter()],
                     validator: (v) {
                       final d = double.tryParse(v?.replaceAll(',', '.') ?? '');
                       if (d == null || d <= 0) {

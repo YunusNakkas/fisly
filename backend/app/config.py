@@ -29,6 +29,18 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""
     ENV: str = "development"
 
+    # Storage backend for receipt images: "local" (dev) or "r2" (Cloudflare R2, prod)
+    STORAGE_BACKEND: str = "local"
+    R2_ACCOUNT_ID: str = ""
+    R2_ACCESS_KEY_ID: str = ""
+    R2_SECRET_ACCESS_KEY: str = ""
+    R2_BUCKET: str = "fisly-receipts"
+    # Presigned GET URL lifetime (seconds) returned to clients
+    R2_URL_EXPIRE_SECONDS: int = 3600
+
+    # RevenueCat webhook Authorization header secret (boşsa webhook devre dışı)
+    REVENUECAT_WEBHOOK_AUTH: str = ""
+
     @property
     def cors_origins_list(self) -> list[str]:
         if self.CORS_ORIGINS.strip() == "*":

@@ -6,6 +6,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../l10n/localized_copy.dart';
+import '../../../core/legal/legal.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -21,6 +23,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _passwordController = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
+  bool _consent = false;
   String? _error;
 
   @override
@@ -33,6 +36,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   Future<void> _register() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!_consent) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -143,13 +147,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     return null;
                   },
                 ),
+                const SizedBox(height: 18),
+                _ConsentRow(
+                  value: _consent,
+                  onChanged: (v) => setState(() => _consent = v),
+                ),
                 if (_error != null) ...[
                   const SizedBox(height: 14),
                   _ErrorBanner(message: _error!),
                 ],
                 const SizedBox(height: 28),
                 FilledButton(
-                  onPressed: _loading ? null : _register,
+                  onPressed: (_loading || !_consent) ? null : _register,
                   child: _loading
                       ? const SizedBox(
                           width: 20,
@@ -213,6 +222,85 @@ class _BrandMark extends StatelessWidget {
           style: AppTypography.titleLg.copyWith(
             fontWeight: FontWeight.w800,
             fontSize: 22,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ConsentRow extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const _ConsentRow({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final linkStyle = AppTypography.bodyMd.copyWith(
+      color: context.colors.primary,
+      fontWeight: FontWeight.w600,
+      decoration: TextDecoration.underline,
+    );
+    final textStyle = AppTypography.bodyMd.copyWith(color: context.colors.textMid);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 24,
+          height: 24,
+          child: Checkbox(
+            value: value,
+            onChanged: (v) => onChanged(v ?? false),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  copyForLocale(context, en: 'I have read and accept the ', tr: ''),
+                  style: textStyle,
+                ),
+                GestureDetector(
+                  onTap: () => openLegalUrl(kPrivacyUrl),
+                  child: Text(
+                    copyForLocale(
+                      context,
+                      en: 'Privacy Policy',
+                      tr: 'Gizlilik Politikası',
+                    ),
+                    style: linkStyle,
+                  ),
+                ),
+                Text(
+                  copyForLocale(context, en: ' and ', tr: ' ve '),
+                  style: textStyle,
+                ),
+                GestureDetector(
+                  onTap: () => openLegalUrl(kKvkkUrl),
+                  child: Text(
+                    copyForLocale(
+                      context,
+                      en: 'Data Protection notice',
+                      tr: 'KVKK Aydınlatma Metni',
+                    ),
+                    style: linkStyle,
+                  ),
+                ),
+                Text(
+                  copyForLocale(
+                    context,
+                    en: '.',
+                    tr: '’ni okudum, kabul ediyorum.',
+                  ),
+                  style: textStyle,
+                ),
+              ],
+            ),
           ),
         ),
       ],

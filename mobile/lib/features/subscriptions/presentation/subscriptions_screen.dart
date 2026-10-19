@@ -7,6 +7,7 @@ import '../../categories/categories_provider.dart';
 import '../../../shared/category_avatar.dart';
 import '../../../shared/category_chip_picker.dart';
 import '../../../shared/category_icons.dart';
+import '../../../shared/currency_input_formatter.dart';
 import '../../../shared/days_pill.dart';
 import '../../../shared/hero_card.dart';
 import '../../../shared/section_label.dart';
@@ -273,7 +274,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
   void _showEditSheet(BuildContext context, Subscription sub) {
     final nameController = TextEditingController(text: sub.name);
     final amountController = TextEditingController(
-      text: sub.amount.toStringAsFixed(2),
+      text: formatAmountForInput(sub.amount),
     );
     final messenger = ScaffoldMessenger.of(context);
     final danger = context.colors.danger;
@@ -365,6 +366,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
+                    inputFormatters: const [CurrencyInputFormatter()],
                     validator: (v) {
                       final d = double.tryParse(v?.replaceAll(',', '.') ?? '');
                       if (d == null || d <= 0) {
@@ -537,6 +539,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
+                    inputFormatters: const [CurrencyInputFormatter()],
                     validator: (v) {
                       final d = double.tryParse(v?.replaceAll(',', '.') ?? '');
                       if (d == null || d <= 0) {

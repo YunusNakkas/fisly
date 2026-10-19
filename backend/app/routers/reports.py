@@ -66,7 +66,8 @@ async def get_summary(
     )
     total_amount, expense_count = total_result.one()
 
-    # Category breakdown
+    # Category breakdown — filtreler JOIN ON koşulunda olmalı, yoksa
+    # sum() o kategorideki tüm kullanıcı/tarih harcamalarını toplar.
     breakdown_result = await db.execute(
         select(
             Category.id,
@@ -76,18 +77,12 @@ async def get_summary(
             func.coalesce(func.sum(Expense.amount), 0).label("total"),
             func.count(Expense.id).label("count"),
         )
-        .join(Expense, Expense.category_id == Category.id, isouter=True)
-        .where(
-            Category.id.in_(
-                select(Expense.category_id)
-                .where(
-                    Expense.user_id == current_user.id,
-                    Expense.spent_at >= from_dt,
-                    Expense.spent_at < to_dt,
-                    Expense.category_id.isnot(None),
-                )
-                .distinct()
-            )
+        .join(
+            Expense,
+            (Expense.category_id == Category.id)
+            & (Expense.user_id == current_user.id)
+            & (Expense.spent_at >= from_dt)
+            & (Expense.spent_at < to_dt),
         )
         .group_by(Category.id)
         .order_by(func.sum(Expense.amount).desc())

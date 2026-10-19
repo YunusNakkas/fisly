@@ -1,11 +1,16 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../auth/profile_provider.dart';
+import '../../../core/api/media_url.dart';
 import '../../../shared/section_label.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../l10n/localized_copy.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -53,31 +58,7 @@ class ProfileScreen extends ConsumerWidget {
                 child: Center(
                   child: Column(
                     children: [
-                      Container(
-                        width: 92,
-                        height: 92,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              context.colors.primary,
-                              context.colors.primaryDim,
-                            ],
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            initial,
-                            style: const TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
+                      _EditableAvatar(initial: initial, avatarUrl: p.avatarUrl),
                       const SizedBox(height: 12),
                       Text(displayName, style: AppTypography.titleLg),
                       const SizedBox(height: 2),
@@ -402,6 +383,139 @@ class _InfoRow extends StatelessWidget {
               Icon(Icons.edit_outlined, size: 18, color: context.colors.textLo),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── Editable avatar (galeriden fotoğraf seç + yükle) ──────────────
+class _EditableAvatar extends ConsumerStatefulWidget {
+  final String initial;
+  final String? avatarUrl;
+  const _EditableAvatar({required this.initial, required this.avatarUrl});
+
+  @override
+  ConsumerState<_EditableAvatar> createState() => _EditableAvatarState();
+}
+
+class _EditableAvatarState extends ConsumerState<_EditableAvatar> {
+  bool _uploading = false;
+
+  Future<void> _pickAndUpload() async {
+    if (_uploading) return;
+    XFile? picked;
+    try {
+      picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 1024,
+      );
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      final denied = e.code == 'photo_access_denied';
+      _snack(denied
+          ? copyForLocale(context,
+              en: 'Photo access is denied. Enable it in Settings.',
+              tr: 'Fotoğraf erişimi reddedildi. Ayarlar’dan izin ver.')
+          : AppLocalizations.of(context).commonError);
+      return;
+    }
+    if (picked == null) return;
+
+    setState(() => _uploading = true);
+    try {
+      await ref.read(profileUpdaterProvider).uploadAvatar(File(picked.path));
+      ref.invalidate(profileProvider);
+      if (mounted) {
+        _snack(copyForLocale(context,
+            en: 'Profile photo updated', tr: 'Profil fotoğrafı güncellendi'));
+      }
+    } catch (_) {
+      if (mounted) {
+        _snack(copyForLocale(context,
+            en: 'Could not upload photo. Please try again.',
+            tr: 'Fotoğraf yüklenemedi. Lütfen tekrar dene.'));
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  void _snack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final url = absoluteMediaUrl(widget.avatarUrl);
+    return GestureDetector(
+      onTap: _pickAndUpload,
+      child: Stack(
+        children: [
+          Container(
+            width: 92,
+            height: 92,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [context.colors.primary, context.colors.primaryDim],
+              ),
+              image: (url != null && url.isNotEmpty)
+                  ? DecorationImage(image: NetworkImage(url), fit: BoxFit.cover)
+                  : null,
+            ),
+            child: (url == null || url.isEmpty)
+                ? Center(
+                    child: Text(
+                      widget.initial,
+                      style: const TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  )
+                : null,
+          ),
+          if (_uploading)
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withValues(alpha: 0.4),
+                ),
+                child: const Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: context.colors.surface,
+                border: Border.all(color: context.colors.bg, width: 2),
+              ),
+              child: Icon(
+                Icons.camera_alt_rounded,
+                size: 16,
+                color: context.colors.primary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

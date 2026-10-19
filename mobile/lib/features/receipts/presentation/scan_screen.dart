@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -29,11 +30,38 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
   Future<void> _pickAndScan(ImageSource source) async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: source,
-      imageQuality: 85,
-      maxWidth: 1920,
-    );
+    XFile? picked;
+    try {
+      picked = await picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1920,
+      );
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      final denied = e.code == 'photo_access_denied' ||
+          e.code == 'camera_access_denied';
+      final String message;
+      if (denied && source == ImageSource.camera) {
+        message = copyForLocale(
+          context,
+          en: 'Camera access is denied. Enable it in Settings.',
+          tr: 'Kamera erişimi reddedildi. Ayarlar’dan izin ver.',
+        );
+      } else if (denied) {
+        message = copyForLocale(
+          context,
+          en: 'Photo access is denied. Enable it in Settings.',
+          tr: 'Fotoğraf erişimi reddedildi. Ayarlar’dan izin ver.',
+        );
+      } else {
+        message = AppLocalizations.of(context).commonError;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: context.colors.danger),
+      );
+      return;
+    }
     if (picked == null) return;
 
     final result = await ref

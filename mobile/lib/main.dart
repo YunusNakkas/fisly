@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'core/billing/billing_service.dart';
 import 'core/config/env.dart';
 import 'core/locale/locale_provider.dart';
 import 'core/router/router.dart';
@@ -11,6 +12,7 @@ import 'l10n/app_localizations.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService.instance.initialize();
+  await configureRevenueCat();
 
   final dsn = Env.sentryDsn;
   if (dsn.isNotEmpty) {
